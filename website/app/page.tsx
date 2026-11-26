@@ -47,7 +47,7 @@ export default function Home() {
           </span>
           <h1 className="mt-6 text-5xl font-semibold tracking-[-0.04em] text-balance sm:text-6xl lg:text-7xl">
             Know your fit<br />
-            <span className="bg-gradient-to-r from-blue via-[#7aa0ff] to-mint bg-clip-text text-transparent">before you apply.</span>
+            <span className="text-dim">before you apply.</span>
           </h1>
           <p className="mt-6 max-w-md text-lg leading-relaxed text-dim">
             Shortlist reads the job page, scores your resume against it and tailors it in one click — entirely inside Chrome.
@@ -96,7 +96,7 @@ export default function Home() {
             ))}
           </ol>
         </div>
-        <div className="relative overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-blue/15 via-ink-2 to-mint/10 p-8">
+        <div className="relative overflow-hidden rounded-2xl border border-line bg-ink-2 p-8">
           <h2 className="text-2xl font-semibold tracking-tight">Your resume never leaves your browser.</h2>
           <dl className="mt-8 grid grid-cols-2 gap-6">
             {[['0', 'servers'], ['0', 'API keys'], ['0', 'accounts'], ['100%', 'local']].map(([n, l]) => (

@@ -1,40 +1,57 @@
-// Service worker: opens the side panel and shows a match-score badge on job pages.
-import { analyzeJob, matchJob } from './lib/matcher.js';
+// Service worker: scores jobs detected by the content script, sets the toolbar badge, opens the side panel.
+import { analyzeJob, matchJob, effectiveProfile } from './lib/matcher.js';
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
-});
-chrome.runtime.onStartup.addListener(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
-});
+const setup = () => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+chrome.runtime.onInstalled.addListener(setup);
+chrome.runtime.onStartup.addListener(setup);
 
-const pending = new Map();
+let cache = null;
+async function data() {
+  cache ||= await chrome.storage.local.get(['resume', 'profile', 'settings']);
+  return cache;
+}
+chrome.storage.onChanged.addListener((_, area) => { if (area === 'local') cache = null; });
 
-async function scoreTab(tabId) {
-  const { settings = {}, resume, profile = {} } = await chrome.storage.local.get(['settings', 'resume', 'profile']);
-  if (settings.autoBadge === false || !resume?.text) return;
-  let res;
-  try {
-    [{ result: res } = {}] = await chrome.scripting.executeScript({ target: { tabId }, files: ['content/extract.js'] });
-  } catch { return; } // chrome:// pages, web store, etc.
-  if (!res?.ok || !res.confident) { chrome.action.setBadgeText({ tabId, text: '' }); return; }
-  const m = matchJob(analyzeJob(res), { text: resume.text, sections: resume.sections, profile });
-  const color = m.score >= 75 ? '#16a34a' : m.score >= 55 ? '#d97706' : '#dc2626';
-  await chrome.action.setBadgeBackgroundColor({ tabId, color });
-  await chrome.action.setBadgeText({ tabId, text: String(m.score) });
-  await chrome.action.setTitle({ tabId, title: `Shortlist: ${m.score}% — ${m.verdict}\n${res.title}` });
+function summarize(job, m) {
+  const must = m.skills.filter(s => s.importance === 'must' && !s.generic);
+  const y = m.years;
+  return {
+    state: 'ok', score: m.score, verdict: m.verdict, title: job.title, company: job.company,
+    mustHave: must.filter(s => s.status === 'matched' || s.status === 'implied').length, mustTotal: must.length,
+    missing: m.skills.filter(s => s.status === 'missing' && !s.generic && s.importance !== 'nice').map(s => s.name),
+    yearsLine: y.required != null ? `${y.required}+ yrs asked · you ${y.candidate}` : '',
+  };
 }
 
-chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
-  if (!/^https?:/.test(tab.url || '')) return;
-  if (info.status === 'complete' || info.url) {
-    clearTimeout(pending.get(tabId));
-    // SPA job boards (LinkedIn, Indeed) render the description after navigation; wait a moment.
-    pending.set(tabId, setTimeout(() => scoreTab(tabId).catch(() => {}), info.url ? 2200 : 900));
-  }
-});
-chrome.tabs.onRemoved.addListener(id => { clearTimeout(pending.get(id)); pending.delete(id); });
+async function setBadge(tabId, score) {
+  if (score == null) { await chrome.action.setBadgeText({ tabId, text: '' }); return; }
+  const color = score >= 75 ? '#12804a' : score >= 55 ? '#b25e09' : '#c0322b';
+  await chrome.action.setBadgeBackgroundColor({ tabId, color });
+  await chrome.action.setBadgeTextColor?.({ tabId, color: '#ffffff' });
+  await chrome.action.setBadgeText({ tabId, text: String(score) });
+}
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  if (msg?.type === 'rescore-tab' && msg.tabId) { scoreTab(msg.tabId).finally(() => reply({ ok: true })); return true; }
+  const tabId = sender.tab?.id;
+
+  if (msg?.type === 'open-panel' && tabId != null) {
+    // Must be called synchronously inside the user-gesture-triggered message handler.
+    chrome.sidePanel.open({ tabId }).then(() => reply({ ok: true }), e => reply({ ok: false, error: e.message }));
+    return true;
+  }
+
+  if (msg?.type === 'no-job' && tabId != null) { setBadge(tabId, null); return; }
+
+  if (msg?.type === 'match' && msg.job) {
+    (async () => {
+      const { resume, profile = {} } = await data();
+      // Let an open side panel pick up the job instantly (SPA navigations like LinkedIn).
+      chrome.runtime.sendMessage({ type: 'job-detected', tabId, job: msg.job }).catch(() => {});
+      if (!resume?.text) { await setBadge(tabId, null); return reply({ state: 'noresume' }); }
+      const m = matchJob(analyzeJob(msg.job), { text: resume.text, sections: resume.sections, profile: effectiveProfile(resume, profile) });
+      if (tabId != null) await setBadge(tabId, m.score);
+      reply(summarize(msg.job, m));
+    })().catch(e => reply({ state: 'error', error: String(e) }));
+    return true;
+  }
 });

@@ -89,7 +89,7 @@ const rescore = debounce(() => {
   live.textContent = `${match.score}% match`;
   live.className = 'score-live ' + scoreClass(match.score);
   const miss = match.skills.filter(s => s.status !== 'matched' && !s.generic);
-  $('#missChips').innerHTML = miss.length ? miss.map(s => `<span class="chip add ${s.status}" data-skill="${escapeHtml(s.name)}" title="${s.status === 'implied' ? 'Implied by ' + escapeHtml(s.via) + ' — add explicitly' : s.status === 'related' ? 'You have ' + escapeHtml(s.via) : s.importance + ' skill'}">+ ${escapeHtml(s.name)}</span>`).join('') : '<span class="muted small">All job skills are covered 🎉</span>';
+  $('#missChips').innerHTML = miss.length ? miss.map(s => `<span class="chip add ${s.status}" data-skill="${escapeHtml(s.name)}" title="${s.status === 'implied' ? 'Implied by ' + escapeHtml(s.via) + ' — add explicitly' : s.status === 'related' ? 'You have ' + escapeHtml(s.via) : s.importance + ' skill'}">+ ${escapeHtml(s.name)}</span>`).join('') : '<span class="muted small">All job skills are covered</span>';
   const kws = match.keywords.filter(k => !k.found);
   $('#kwChips').innerHTML = kws.length ? kws.map(k => `<span class="chip kw-missing" title="Appears ${k.n}× in job">${escapeHtml(k.word)}</span>`).join('') : '<span class="muted small">All frequent job keywords present.</span>';
 }, 150);
