@@ -26,7 +26,7 @@ const features = [
   { tag: 'Match', title: 'A score you can trust', body: 'Reads the job straight from the page’s DOM, splits must-haves from nice-to-haves, and checks skills, years, degree and keywords. Deterministic — same input, same score.', accent: 'text-blue' },
   { tag: 'Tailor', title: 'Resume Studio', body: 'Live editor with the score updating as you type. Add missing skills, surface relevant bullets, export PDF or DOCX.', accent: 'text-mint' },
   { tag: 'Apply', title: 'Autofill in one click', body: 'Name, email, links, experience — and your resume file attached. Works on Greenhouse, Lever and most forms.', accent: 'text-amber' },
-  { tag: 'AI', title: 'Optional, on-device', body: 'Uses Chrome’s built-in Gemini Nano for rewrites and cover letters. No key, no cloud. Off? Everything still works.', accent: 'text-coral' },
+  { tag: 'AI', title: 'Built-in AI', body: 'Insights, rewrites and cover letters with Chrome’s built-in Gemini Nano. No key, no subscription. Off? Everything still works.', accent: 'text-coral' },
 ];
 
 const steps = [
