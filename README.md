@@ -36,89 +36,12 @@ Your resume, profile, history and tailored resumes are stored in `chrome.storage
 
 Everything runs inside the browser. There is no backend: the only network traffic is the job page itself and, optionally, Chrome's one-time download of its built-in model.
 
-```mermaid
-flowchart LR
-  subgraph TAB["① Job site tab"]
-    direction TB
-    DOM["Job posting DOM<br/>LinkedIn · Naukri · Workday · …"] --> EX["content/extract.js<br/>reads title, company, description"] --> CARD["content/widget.js<br/>floating score card"]
-  end
+Diagrams live in [`docs/diagrams`](docs/diagrams/README.md):
 
-  subgraph EXT["② Extension"]
-    direction TB
-    BG["background.js<br/>scores jobs · badge · opens panel"] --- OFF["offscreen/<br/>runs AI for the card"]
-    SP["sidepanel/<br/>Match · Apply · Profile"] ~~~ ST["studio/<br/>resume + cover letter editor"]
-  end
-
-  subgraph CORE["③ lib/ — shared logic"]
-    direction TB
-    MATCH["matcher.js + skills.js<br/>deterministic score"] ~~~ PARSE["resume-parser.js<br/>PDF / DOCX → rich text"]
-    MODEL["resume-model · docx · letter<br/>render & export"] ~~~ AI["ai.js<br/>prompts"]
-  end
-
-  STORE[("chrome.storage.local<br/>resume · profile · drafts")]
-  NANO["Chrome built-in AI<br/>Gemini Nano · optional"]
-
-  TAB <-- "runtime messages" --> EXT
-  EXT -- "imports" --> CORE
-  EXT <-- "read / write" --> STORE
-  CORE -. "Prompt API" .-> NANO
-```
-
-### What happens when you open a job
-
-```mermaid
-sequenceDiagram
-  autonumber
-  participant P as Job page
-  participant C as Content script
-  participant B as Background
-  participant S as chrome.storage
-  participant SP as Side panel
-  participant O as Offscreen page
-  P->>C: page loads / SPA navigates (URL or DOM change)
-  C->>C: extract job (title, company, description)
-  C->>B: match(job)
-  B->>S: read resume + profile
-  B->>B: analyzeJob + matchJob (no AI)
-  B-->>C: score, verdict, missing must-haves
-  B->>B: set toolbar badge
-  C->>P: show floating card
-  B-->>SP: job-detected (if panel is open)
-  opt "AI insights" clicked on the card
-    C->>B: ai-insights(job)
-    B->>B: ensure offscreen document
-    B->>O: ai-insights(job)
-    O->>O: Prompt API → Gemini Nano (on device)
-    O-->>B: insights text
-    B-->>C: insights text
-  end
-```
-
-### Scoring (deterministic)
-
-```mermaid
-flowchart TD
-  JD["Job text"] --> SEC["Split into sections<br/>must-have · responsibilities · nice-to-have · company"]
-  SEC --> SK["Detect ~250 skills with aliases<br/>weight by section + frequency"]
-  RES["Resume text + profile skills"] --> HAVE["Your skills<br/>direct · implied (Next.js → React) · related family"]
-  SK & HAVE --> S1["Skills 55%"]
-  JD --> Y["Years asked"] --> S2["Experience 15%"]
-  RES --> YR["Years from date ranges<br/>(Sep 2025 – Present)"] --> S2
-  JD --> KW["Top repeated keywords"] --> S3["Keywords 15%"]
-  S4["Title 10%"]
-  S5["Education 5%"]
-  S1 & S2 & S3 & S4 & S5 --> SCORE["Weighted score<br/>capped if must-haves are missing"]
-```
-
-### Release pipeline
-
-```mermaid
-flowchart LR
-  M["Merge to main"] --> Q{"Extension files changed?<br/>(not website/, test/, .github/, *.md)"}
-  Q -- no --> N["No release<br/>(Vercel redeploys website/ if changed)"]
-  Q -- yes --> T["Test matcher"] --> V["Version = major.minor.run#"] --> Z["Zip extension"] --> R["GitHub Release<br/>shortlist-extension.zip"]
-  R --> W["Website buttons → releases/latest/download"]
-```
+- [Architecture](docs/diagrams/architecture.md)
+- [What happens when you open a job](docs/diagrams/job-flow.md)
+- [How the match score is calculated](docs/diagrams/scoring.md)
+- [Release pipeline](docs/diagrams/release-pipeline.md)
 
 ## Project layout
 ```
@@ -140,12 +63,13 @@ lib/pdfjs/               Mozilla pdf.js 4.10 (Apache-2.0), bundled locally
 sidepanel/               Match · Apply · Profile UI
 studio/                  Resume Studio + cover letter
 website/                 landing page (Next.js), deployed on Vercel
+docs/diagrams/           architecture, job flow, scoring and release diagrams (Mermaid)
 test/                    `node test/run.mjs` — matcher smoke test
 .github/workflows/       release.yml — versioned zip + GitHub Release
 ```
 
 ## Releases
-Every push to `main` that changes extension files (anything outside `website/`, `test/`, `.github/` and `*.md`) runs `.github/workflows/release.yml`: it tests the matcher, sets the version to `<major>.<minor>.<build number>` (from `manifest.json`), zips the extension and publishes a GitHub Release. The link above always points to the newest one. Bump `major.minor` in `manifest.json` for bigger releases.
+Every push to `main` that changes extension files (anything outside `website/`, `docs/`, `test/`, `.github/` and `*.md`) runs `.github/workflows/release.yml`: it tests the matcher, sets the version to `<major>.<minor>.<build number>` (from `manifest.json`), zips the extension and publishes a GitHub Release. The link above always points to the newest one. Bump `major.minor` in `manifest.json` for bigger releases.
 
 ## Website
 The landing page lives in `website/` (Next.js + Tailwind + Geist). Deploy on Vercel: **New Project → import this repo → set Root Directory to `website`** → Deploy. Local dev: `cd website && npm install && npm run dev`.

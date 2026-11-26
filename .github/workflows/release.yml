@@ -7,6 +7,7 @@ on:
     # (Keep in sync with the excludes in "Build zip"; run manually via workflow_dispatch if needed.)
     paths-ignore:
       - 'website/**'
+      - 'docs/**'
       - 'test/**'
       - '.github/**'
       - '**.md'
@@ -44,7 +45,7 @@ jobs:
           VERSION=${{ steps.v.outputs.version }}
           mkdir -p dist/ext
           # Ship everything except non-extension folders, so new extension folders are never forgotten.
-          tar --exclude='./.*' --exclude='./website' --exclude='./test' --exclude='./dist' --exclude='node_modules' -cf - . | tar -xf - -C dist/ext
+          tar --exclude='./.*' --exclude='./website' --exclude='./docs' --exclude='./test' --exclude='./dist' --exclude='node_modules' -cf - . | tar -xf - -C dist/ext
           test -f dist/ext/manifest.json && test -d dist/ext/offscreen
           node -e "
             const fs=require('fs'), p='dist/ext/manifest.json';
