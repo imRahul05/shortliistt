@@ -3,7 +3,7 @@
 Free, private job-application helper. No sign-in, no API keys, no servers. Everything runs in your browser.
 
 ## Install (2 minutes)
-1. Download **[shortlist-extension.zip](https://github.com/imRahul05/Shortliistt/releases/latest/download/shortlist-extension.zip)** (latest release) and unzip it.
+1. Download **[shortlist-extension.zip](https://github.com/imRahul05/shortliistt/releases/latest/download/shortlist-extension.zip)** (latest release) and unzip it.
 2. Open `chrome://extensions`, turn on **Developer mode** (top right).
 3. Click **Load unpacked** and select the unzipped `shortlist` folder.
 4. Pin Shortlist and click the icon (or press **Alt+J**). The side panel opens.

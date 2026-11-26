@@ -1,6 +1,6 @@
 import Hero3D from '@/components/Hero3D';
 
-const REPO = 'https://github.com/imRahul05/Shortliistt';
+const REPO = 'https://github.com/imRahul05/shortliistt';
 const ZIP = `${REPO}/releases/latest/download/shortlist-extension.zip`;
 
 const features = [
@@ -131,7 +131,7 @@ export default function Home() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-sm text-dim">
           <span className="flex items-center gap-2"><img src="/icon.png" alt="" className="size-5" />Shortlist — free &amp; open source</span>
-          <a href={REPO} className="hover:text-fg">github.com/imRahul05/Shortliistt</a>
+          <a href={REPO} className="hover:text-fg">github.com/imRahul05/shortliistt</a>
         </div>
       </footer>
     </main>
