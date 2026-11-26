@@ -104,10 +104,23 @@
 
   <!-- ============ APPLY ============ -->
   <section id="tab-apply" hidden>
-    <div class="card">
-      <h3>Autofill</h3>
-      <p class="muted small lead">Fills your details on the open application form and attaches your resume file. Always review before submitting.</p>
-      <div class="row"><button id="autofillBtn" class="btn primary" data-icon-l="bolt">Autofill this page</button><span id="autofillStatus" class="muted small"></span></div>
+    <div class="card" id="formCard">
+      <h3>This page <span class="count" id="formHost"></span></h3>
+      <div class="form-kind" id="formKind"><span class="kind-dot"></span><span id="formKindText">Looking for a form…</span></div>
+      <p class="muted small lead" id="formHint"></p>
+      <button id="autofillBtn" class="btn primary block" data-icon-l="bolt">Autofill this page</button>
+      <div id="autofillStatus" class="fill-note" hidden></div>
+      <div id="pageActionsWrap" hidden>
+        <div class="group-title" style="margin-top:14px"><span>Page buttons</span><span>click here or on the page</span></div>
+        <div id="pageActions" class="page-actions"></div>
+      </div>
+    </div>
+
+    <div class="card" id="vaultCard" hidden>
+      <h3>Saved login <span class="count" id="vaultHost"></span></h3>
+      <div class="cred"><span class="k">Email</span><span class="v" id="vEmail"></span><button class="btn ghost small icon" data-copyv="email" title="Copy email" data-icon="copy"></button></div>
+      <div class="cred"><span class="k">Password</span><span class="v mono" id="vPass">••••••••••••</span><button class="btn ghost small" id="vShow">Show</button><button class="btn ghost small icon" data-copyv="password" title="Copy password" data-icon="copy"></button></div>
+      <p class="muted small" style="margin:8px 0 0">Created by Shortlist <span id="vWhen"></span>. Stored only in this browser. <button class="linkish" id="vForget">Forget</button></p>
     </div>
 
     <div class="card">

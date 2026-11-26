@@ -1,5 +1,6 @@
 // Service worker: scores jobs detected by the content script, sets the toolbar badge, opens the side panel.
 import { analyzeJob, matchJob, effectiveProfile } from './lib/matcher.js';
+import { scanForm, autofillPage, clickAction, generatePassword } from './lib/autofill.js';
 
 const setup = () => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 chrome.runtime.onInstalled.addListener(setup);
@@ -32,20 +33,63 @@ async function setBadge(tabId, score) {
 }
 
 async function ensureOffscreen() {
-  if (await chrome.offscreen.hasDocument?.()) return;
-  await chrome.offscreen.createDocument({ url: 'offscreen/offscreen.html', reasons: ['DOM_PARSER'], justification: 'Runs Chrome built-in AI (Prompt API), which needs a document, to show job insights on the page.' }).catch(e => { if (!/single offscreen/i.test(e.message)) throw e; });
+  if (!(await chrome.offscreen.hasDocument?.())) {
+    await chrome.offscreen.createDocument({ url: 'offscreen/offscreen.html', reasons: ['DOM_PARSER'], justification: 'Runs Chrome built-in AI (Prompt API), which needs a document, to show job insights on the page.' }).catch(e => { if (!/single offscreen/i.test(e.message)) throw e; });
+  }
+  // The document's module script may not have registered its listeners yet: wait for a pong.
+  for (let i = 0; i < 40; i++) {
+    const r = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'ping' }).catch(() => null);
+    if (r?.pong) return true;
+    await new Promise(res => setTimeout(res, 75));
+  }
+  throw new Error('AI worker did not start');
+}
+
+/* ---------------- Forms: scan, autofill (with account creation), click page buttons ---------------- */
+const RANK = { signup: 3, signin: 2, application: 1, none: 0 };
+async function scanTab(tabId) {
+  const res = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: scanForm }).catch(() => []);
+  const frames = res.filter(r => r.result).map(r => ({ ...r.result, frameId: r.frameId }));
+  frames.sort((a, b) => RANK[b.kind] - RANK[a.kind] || b.empty - a.empty);
+  const best = frames[0] || { kind: 'none', actions: [], host: '' };
+  const actions = frames.flatMap(f => f.actions.map(a => ({ ...a, frameId: f.frameId })));
+  const { accounts = {} } = await chrome.storage.local.get('accounts');
+  const acc = accounts[best.host];
+  return { ...best, actions, terms: frames.some(f => f.terms), account: acc ? { email: acc.email, at: acc.at } : null };
+}
+
+async function autofillTab(tabId) {
+  const scan = await scanTab(tabId);
+  const { profile = {}, resume, accounts = {} } = await chrome.storage.local.get(['profile', 'resume', 'accounts']);
+  let password = null, generated = false;
+  if (scan.kind === 'signup' && scan.host) {
+    const existing = accounts[scan.host];
+    password = existing?.password || generatePassword();
+    generated = !existing;
+    accounts[scan.host] = { email: profile.email || existing?.email || '', password, at: existing?.at || Date.now() };
+    await chrome.storage.local.set({ accounts });
+  } else if (scan.kind === 'signin') password = accounts[scan.host]?.password || null;
+  const file = resume?.fileData ? { dataURL: resume.fileData, name: resume.fileName } : null;
+  const res = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: autofillPage, args: [profile, file, { password }] }).catch(e => { throw new Error('Can’t access this page: ' + e.message); });
+  const t = res.reduce((a, r) => ({ filled: a.filled + (r.result?.filled || 0), attached: a.attached + (r.result?.attached || 0), passwordFilled: a.passwordFilled + (r.result?.passwordFilled || 0), terms: a.terms + (r.result?.terms || 0) }), { filled: 0, attached: 0, passwordFilled: 0, terms: 0 });
+  return { ...t, kind: scan.kind, host: scan.host, generated, usedSaved: scan.kind === 'signin' && !!password, noEmail: !profile.email, actions: scan.actions };
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const tabId = sender.tab?.id;
   if (msg?.target === 'offscreen') return; // handled by the offscreen document
 
-  if (msg?.type === 'ai-insights' && msg.job) {
-    ensureOffscreen()
-      .then(() => chrome.runtime.sendMessage({ target: 'offscreen', type: 'ai-insights', job: msg.job }))
-      .then(r => reply(r || { error: 'failed' }), e => reply({ error: 'failed', message: e.message }));
+  if (msg?.type === 'ensure-offscreen') { ensureOffscreen().then(() => reply({ ok: true }), e => reply({ ok: false, error: e.message })); return true; }
+
+  const formTab = msg?.tabId ?? tabId;
+  if (msg?.type === 'form-scan' && formTab != null) { scanTab(formTab).then(reply, e => reply({ kind: 'none', error: e.message })); return true; }
+  if (msg?.type === 'autofill' && formTab != null) { autofillTab(formTab).then(reply, e => reply({ error: e.message })); return true; }
+  if (msg?.type === 'page-action' && formTab != null) {
+    chrome.scripting.executeScript({ target: { tabId: formTab, frameIds: [msg.frameId ?? 0] }, func: clickAction, args: [msg.key] })
+      .then(r => reply({ ok: !!r?.[0]?.result }), e => reply({ ok: false, error: e.message }));
     return true;
   }
+
 
   if (msg?.type === 'open-panel-with' && tabId != null) {
     chrome.storage.session.set({ pendingAction: msg.action });
