@@ -74,7 +74,34 @@ var __shortlistExtract = __shortlistExtract || (() => {
     { host: /dice\.com/, name: 'Dice', desc: ['[data-testid="jobDescriptionHtml"]', '#jobdescSec'], title: ['h1'], company: ['[data-cy="companyNameLink"]'] },
     { host: /instahyre|hirist|cutshort|iimjobs|foundit|monster/, name: 'job board', desc: ['[class*="job-description"]', '[class*="jobDescription"]', '[class*="description"]'], title: ['h1'], company: [] },
     { host: /amazon\.jobs/, name: 'Amazon Jobs', desc: ['#job-detail-body', '.section'], title: ['h1.title', 'h1'], company: [] },
+    { host: /workable\.com/, name: 'Workable', desc: ['[data-ui="job-description"]', '[data-ui="job-breakdown"]', 'section[class*="description"]'], title: ['[data-ui="job-title"]', 'h1'], company: [] },
+    { host: /bamboohr\.com/, name: 'BambooHR', desc: ['.BambooHR-ATS-Description', '[class*="jss-description"]', '.ResAts__page'], title: ['h2', 'h1'], company: [] },
+    { host: /recruitee\.com/, name: 'Recruitee', desc: ['[data-testid="job-description"]', '.job-description', 'section[class*="description"]'], title: ['h1'], company: [] },
+    { host: /teamtailor\.com/, name: 'Teamtailor', desc: ['.job-ad-body', '[class*="prose"]', 'main'], title: ['h1'], company: [] },
+    { host: /jobs\.personio\./, name: 'Personio', desc: ['[class*="job-description"]', '.description', 'main'], title: ['h1'], company: [] },
+    { host: /jobvite\.com/, name: 'Jobvite', desc: ['.jv-job-detail-description', '.jv-wrapper'], title: ['.jv-header', 'h2', 'h1'], company: [] },
+    { host: /icims\.com/, name: 'iCIMS', desc: ['.iCIMS_JobContent', '.iCIMS_InfoMsg_Job', '.iCIMS_Expandable_Container'], title: ['.iCIMS_Header', 'h1'], company: [] },
+    { host: /taleo\.net/, name: 'Taleo', desc: ['[id*="requisitionDescription"]', '.requisitionDescriptionInterface', '.contentlinepanel'], title: ['[id*="reqTitle"]', 'h1'], company: [] },
+    { host: /successfactors|jobs\.sap\.com/, name: 'SuccessFactors', desc: ['.jobdescription', '[data-careersite-propertyid="description"]', '.job'], title: ['[data-careersite-propertyid="title"]', 'h1'], company: [] },
+    { host: /zohorecruit|zoho\.com/, name: 'Zoho Recruit', desc: ['#spandesc', '.job-description', '[class*="jobdesc"]'], title: ['h1'], company: [] },
+    { host: /internshala\.com/, name: 'Internshala', desc: ['.internship_details', '.text-container', '.about_company_text_container'], title: ['.heading_4_5.profile', '.profile', 'h1'], company: ['.company_name a', '.company_name'] },
+    { host: /shine\.com|apna\.co|hirect\.in/, name: 'job board', desc: ['[class*="jobDescription"]', '[class*="job-description"]', '[class*="JobDescription"]'], title: ['h1'], company: [] },
+    { host: /workatastartup\.com|ycombinator\.com/, name: 'YC', desc: ['.prose', '[class*="description"]'], title: ['h1'], company: [] },
+    { host: /welcometothejungle|otta\.com/, name: 'Welcome to the Jungle', desc: ['[data-testid="job-section-description"]', '[class*="description"]'], title: ['h1', 'h2'], company: [] },
   ];
+
+  // 2b) Generic: elements named like a job description on any careers site.
+  const GENERIC = '[class*="job-description" i],[class*="jobdescription" i],[class*="job_description" i],[id*="job-description" i],[id*="jobdescription" i],[id*="job_description" i],[class*="description__text" i],[class*="posting-description" i],[data-testid*="description" i],[data-automation-id*="description" i],[data-qa*="description" i],[itemprop="description"]';
+  function fromGeneric() {
+    let best = null, bestLen = 0;
+    for (const el of document.querySelectorAll(GENERIC)) {
+      const t = el.textContent || '', len = t.length;
+      if (len < 150 || len > 30000 || signalCount(t) < 1) continue;
+      if (len > bestLen) { best = el; bestLen = len; }
+    }
+    if (!best) return null;
+    return { title: nearestTitle(best), company: '', description: nodeToText(best), source: 'job description block' };
+  }
   function fromSite() {
     const s = SITES.find(x => x.host.test(location.hostname));
     if (!s) return null;
@@ -149,7 +176,7 @@ var __shortlistExtract = __shortlistExtract || (() => {
       // Cheap gate before the DOM-wide scans, so normal pages cost ~nothing.
       const sample = document.body.textContent.slice(0, 200000);
       if (signalCount(sample) < 2) return { ok: false, url: location.href, pageTitle: document.title };
-      job = fromAnchor() || fromHeuristic();
+      job = fromGeneric() || fromAnchor() || fromHeuristic();
     }
     if (!job || job.description.length < 150) return { ok: false, url: location.href, pageTitle: document.title };
     if (/(^|\.)linkedin\.com$/.test(location.hostname)) {

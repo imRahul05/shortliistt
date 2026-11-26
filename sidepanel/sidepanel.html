@@ -65,38 +65,39 @@
         </div>
         <div class="meter"><i id="meter"></i></div>
         <div id="bars" class="bars"></div>
+        <div class="row ai-row" id="aiRow"><button id="aiInsightsBtn" class="btn ai block" data-icon-l="spark">Generate AI insights</button></div>
       </div>
 
-      <div class="card">
+      <div class="ai-panel" id="aiCard" hidden>
+        <h3>AI insights</h3>
+        <div id="aiInsights" class="md small"></div>
+      </div>
+
+      <div class="card collapsible" id="cReq">
         <h3>Requirements <span class="count" id="reqCount"></span></h3>
         <div id="skillGroups"></div>
       </div>
 
-      <div class="card" id="aiReqCard" hidden>
-        <h3><span data-icon="chip" class="h-ico"></span>Read by local AI <span class="count" id="aiReqCount"></span></h3>
+      <div class="card collapsible" id="aiReqCard" hidden>
+        <h3><span data-icon="spark" class="h-ico ai-ico"></span>AI requirement check <span class="count" id="aiReqCount"></span></h3>
         <div id="aiReq" class="muted small"></div>
       </div>
 
-      <div class="card">
+      <div class="card collapsible" id="cFacts">
         <h3>Experience &amp; education</h3>
         <div id="facts" class="facts"></div>
       </div>
 
-      <div class="card">
+      <div class="card collapsible" id="cKw">
         <h3>Job keywords <span class="count" id="kwCount"></span></h3>
         <div id="keywords" class="chips"></div>
       </div>
 
-      <div class="card">
+      <div class="card collapsible" id="cFix">
         <h3>What to fix</h3>
         <ul id="sugs" class="sugs"></ul>
       </div>
 
-      <div class="card" id="aiCard" hidden>
-        <h3><span data-icon="chip" class="h-ico"></span>Local AI review</h3>
-        <div id="aiInsights" class="md muted small">A short, honest read of your fit, written on your device.</div>
-        <div class="row" style="margin-top:10px"><button id="aiInsightsBtn" class="btn small">Generate review</button></div>
-      </div>
       <div class="sticky"><button id="tailorBtn" class="btn primary block">Tailor resume for this job <span data-icon="arrow"></span></button></div>
     </div>
   </section>
@@ -112,16 +113,16 @@
     <div class="card">
       <h3>Application question</h3>
       <textarea id="qText" rows="2" placeholder="Why do you want to work here?"></textarea>
-      <div class="row" style="margin:8px 0"><button id="qBtn" class="btn small">Draft answer</button></div>
+      <div class="row" style="margin:8px 0"><button id="qBtn" class="btn small ai" data-icon-l="spark">Draft with AI</button></div>
       <textarea id="qOut" rows="6" placeholder="Your draft appears here"></textarea>
       <div class="row" style="margin-top:6px"><button class="btn small ghost" data-copy="qOut" data-icon-l="copy">Copy</button></div>
     </div>
 
     <div class="card">
-      <h3>Cover letter</h3>
-      <div class="row" style="margin-bottom:8px"><button id="clBtn" class="btn small">Write for this job</button></div>
-      <textarea id="clOut" rows="9" placeholder="Generated for the job on the Match tab"></textarea>
-      <div class="row" style="margin-top:6px"><button class="btn small ghost" data-copy="clOut" data-icon-l="copy">Copy</button><button id="clDl" class="btn small ghost" data-icon-l="download">.txt</button></div>
+      <h3>Cover letter <span class="count" id="clFor"></span></h3>
+      <div class="row" style="margin-bottom:8px"><button id="clAiBtn" class="btn small ai" data-icon-l="spark">Generate with AI</button><button id="clBtn" class="btn small">From my resume</button></div>
+      <textarea id="clOut" rows="12" placeholder="Open a job on the Match tab — a letter is drafted automatically from your resume."></textarea>
+      <div class="row" style="margin-top:6px"><button id="clStudio" class="btn small" data-icon-l="file">Format &amp; download PDF</button><button class="btn small ghost" data-copy="clOut" data-icon-l="copy">Copy</button></div>
     </div>
 
     <div class="card">
@@ -200,13 +201,13 @@
       <label class="toggle"><span>Floating score card on job pages</span><input type="checkbox" id="setWidget"></label>
       <label class="toggle"><span>Card position</span>
         <select id="setPos"><option value="br">Bottom right</option><option value="bl">Bottom left</option><option value="tr">Top right</option><option value="tl">Top left</option></select></label>
-      <label class="toggle"><span>Use on-device AI when available</span><input type="checkbox" id="setAI"></label>
+      <label class="toggle"><span>Use AI features (Chrome built-in, free)</span><input type="checkbox" id="setAI"></label>
       <p id="aiSetup" class="muted small" style="margin:8px 0 0"></p>
     </div>
 
     <div class="card">
       <h3>Privacy</h3>
-      <p class="muted small lead">No accounts, keys or servers. Everything is stored in this browser only. Local AI runs Chrome’s built-in Gemini Nano on your device.</p>
+      <p class="muted small lead">No accounts, keys or servers. Everything is stored in this browser only. AI features use Chrome’s built-in Gemini Nano, which runs on your device.</p>
       <button id="wipe" class="btn small">Delete all my data</button>
     </div>
   </section>

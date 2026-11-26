@@ -1,7 +1,26 @@
 // Floating match card shown on job pages. Runs in every page; does nothing unless a job posting is detected.
 (() => {
-  if (window.top !== window || window.__shortlistWidget) return;
+  if (window.__shortlistWidget) return;
   window.__shortlistWidget = true;
+  const isTop = window.top === window;
+
+  // Sub-frames (embedded Greenhouse/Lever/Workday boards): detect only; the card is drawn by the top frame.
+  if (!isTop) {
+    let lastH = '';
+    const scan = () => {
+      if (innerWidth < 320 || innerHeight < 240) return;
+      let job; try { job = __shortlistExtract(); } catch { return; }
+      if (!job?.ok || !job.confident) return;
+      let h = 0; const k = job.title + job.description.slice(0, 2000); for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) | 0;
+      if (String(h) === lastH) return; lastH = String(h);
+      try { chrome.runtime.sendMessage({ type: 'match', job }); } catch {}
+    };
+    let t; const later = ms => { clearTimeout(t); t = setTimeout(scan, ms); };
+    later(900);
+    const stopAt = Date.now() + 20000;
+    new MutationObserver(() => { if (Date.now() < stopAt) later(1000); }).observe(document.documentElement, { childList: true, subtree: true });
+    return;
+  }
 
   let alive = true, lastUrl = '', lastHash = '', settleUntil = 0, timer = null, state = null;
   let settings = { widget: true, widgetPos: 'br' };
@@ -59,6 +78,16 @@
     .pill .mark{width:20px;height:20px;border-radius:99px}
     .dot{width:7px;height:7px;border-radius:99px}
     .muted{color:var(--mut)}
+    .btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px}
+    .btns .btn{margin-top:0}
+    .btn.ai{background:#2563eb;color:#fff;box-shadow:0 1px 2px rgba(37,99,235,.3),inset 0 1px 0 rgba(255,255,255,.15)}
+    .btn.ai svg{width:12px;height:12px}
+    .btn.ghost{background:var(--soft);color:var(--fg)}
+    .ai-box{margin-top:12px;padding:10px 11px;border-radius:10px;background:#eef3ff;color:#16244a;font-size:12.3px;line-height:1.5;max-height:240px;overflow:auto;border:1px solid #d6e1fb}
+    @media (prefers-color-scheme:dark){.ai-box{background:#152342;color:#dbe6ff;border-color:#22386a}}
+    .ai-box p{margin:0 0 6px}.ai-box ul{margin:2px 0 6px;padding-left:16px}.ai-box li{margin:2px 0}.ai-box b{font-weight:600}
+    .spin{width:12px;height:12px;border:1.75px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
+    @keyframes sp{to{transform:rotate(360deg)}}
   </style><div class="wrap" id="w"></div>`;
   const W = root.getElementById('w');
 
@@ -66,6 +95,7 @@
     mark: '<svg viewBox="0 0 24 24" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     min: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 12h12"/></svg>',
     x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    spark: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>',
     arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
   };
   const tone = s => (s >= 75 ? ['var(--good)', 'var(--goodbg)'] : s >= 55 ? ['var(--warn)', 'var(--warnbg)'] : ['var(--bad)', 'var(--badbg)']);
@@ -109,21 +139,47 @@
         <div class="sub">${esc([r.company, r.yearsLine].filter(Boolean).join(' · '))}</div>
         ${r.mustTotal ? `<div class="row"><span>Must-have skills</span><b>${r.mustHave}/${r.mustTotal}</b></div>` : ''}
         ${missing.length ? `<div class="tags">${missing.map(m => `<span class="tag">${esc(m)}</span>`).join('')}${r.missing.length > 4 ? `<span class="tag" style="background:var(--soft);color:var(--mut)">+${r.missing.length - 4}</span>` : ''}</div>` : `<div class="row"><span>No must-have skills missing</span></div>`}
-        <button class="btn" data-a="open">Full report ${ICON.arrow}</button>
+        <div class="btns"><button class="btn ai" data-a="ai">${ICON.spark} AI insights</button><button class="btn" data-a="open">Full report ${ICON.arrow}</button></div>
+        ${aiHtml ? `<div class="ai-box">${aiHtml}</div>` : ''}
       </div></div>`;
   }
 
   root.addEventListener('click', async e => {
-    const a = e.target.closest('[data-a]')?.dataset.a;
+    const el = e.target.closest('[data-a]');
+    const a = el?.dataset.a;
     if (!a) return;
+    if (el.tagName === 'A') e.preventDefault();
     if (a === 'x') { dismissed.add(location.href); hide(); }
     if (a === 'min') { sessionStorage.setItem('shortlist-min', '1'); render(state, lastJob); }
     if (a === 'expand') { sessionStorage.removeItem('shortlist-min'); render(state, lastJob); }
     if (a === 'open') send({ type: 'open-panel' });
+    if (a === 'ai-panel') send({ type: 'open-panel-with', action: 'ai-insights' });
+    if (a === 'ai') {
+      aiHtml = '<span class="spin"></span>Reading the job and your resume…';
+      render(state, lastJob);
+      const h = lastHash;
+      const r = await send({ type: 'ai-insights', job: lastJob });
+      if (h !== lastHash) return;
+      if (r?.text) aiHtml = mdLite(r.text);
+      else if (r?.error === 'downloadable' || r?.error === 'downloading') aiHtml = 'Chrome’s built-in AI needs a one-time download. <a href="#" data-a="ai-panel">Enable it in Shortlist</a>.';
+      else if (r?.error === 'unsupported' || r?.error === 'unavailable') aiHtml = 'This Chrome doesn’t have built-in AI (desktop Chrome 138+ needed). The score above works without it.';
+      else aiHtml = 'AI couldn’t answer right now. <a href="#" data-a="ai-panel">Try in the Shortlist panel</a>.';
+      render(state, lastJob);
+    }
   });
 
   /* ---------- detection loop ---------- */
-  let lastJob = null;
+  let lastJob = null, aiHtml = '';
+  const mdLite = t => {
+    let html = '', list = false;
+    for (const l of esc(t.trim()).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').split('\n')) {
+      const x = l.trim();
+      if (/^[-*•]\s+/.test(x)) { if (!list) { html += '<ul>'; list = true; } html += `<li>${x.replace(/^[-*•]\s+/, '')}</li>`; continue; }
+      if (list) { html += '</ul>'; list = false; }
+      if (x) html += `<p>${x.replace(/^#+\s*/, '')}</p>`;
+    }
+    return html + (list ? '</ul>' : '');
+  };
   async function run() {
     if (!alive) return;
     if (location.href !== lastUrl) { lastUrl = location.href; lastHash = ''; settleUntil = Date.now() + 15000; }
@@ -132,7 +188,7 @@
     if (!job?.ok || !job.confident) { if (lastHash) { lastHash = ''; hide(); send({ type: 'no-job' }); } return; }
     const h = hash(job.title + '|' + job.description.slice(0, 3000));
     if (h === lastHash) return;
-    lastHash = h; lastJob = job;
+    lastHash = h; lastJob = job; aiHtml = '';
     const r = await send({ type: 'match', job });
     if (r && h === lastHash) render(r, job);
   }
@@ -141,6 +197,11 @@
   chrome.storage.local.get('settings', ({ settings: s }) => { settings = { ...settings, ...(s || {}) }; schedule(700); });
   setInterval(() => { if (alive && location.href !== lastUrl) schedule(500); }, 700);
   new MutationObserver(() => { if (Date.now() < settleUntil) schedule(900); }).observe(document.documentElement, { childList: true, subtree: true });
+  // A job detected inside an iframe of this page.
+  chrome.runtime.onMessage.addListener(msg => {
+    if (msg?.type !== 'render' || !alive || lastHash) return;
+    lastJob = msg.job; render(msg.result, msg.job);
+  });
   chrome.storage.onChanged.addListener((ch, area) => {
     if (area !== 'local' || !alive) return;
     if (ch.settings) { settings = { ...settings, ...(ch.settings.newValue || {}) }; if (!settings.widget) hide(); else place(); }
