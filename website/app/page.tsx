@@ -1,7 +1,26 @@
 import Hero3D from '@/components/Hero3D';
+import { ChromeLogo, SITES, SiteLogo } from '@/components/Brand';
 
 const REPO = 'https://github.com/imRahul05/shortliistt';
 const ZIP = `${REPO}/releases/latest/download/shortlist-extension.zip`;
+
+/** Latest release from GitHub, refreshed at most hourly (ISR) — no redeploy needed after a release. */
+async function latestVersion(): Promise<string | null> {
+  try {
+    const r = await fetch('https://api.github.com/repos/imRahul05/shortliistt/releases/latest', { next: { revalidate: 3600 }, headers: { Accept: 'application/vnd.github+json' } });
+    if (!r.ok) return null;
+    return ((await r.json()) as { tag_name?: string }).tag_name ?? null;
+  } catch { return null; }
+}
+
+function DownloadButton({ size = 'lg', label = 'Add to Chrome — free' }: { size?: 'sm' | 'lg'; label?: string }) {
+  const cls = size === 'lg' ? 'gap-2.5 px-5 py-3 text-[15px]' : 'gap-2 px-3.5 py-1.5 text-sm';
+  return (
+    <a href={ZIP} className={`group inline-flex items-center rounded-full bg-fg font-medium text-ink shadow-[0_1px_0_rgba(255,255,255,.4)_inset,0_8px_24px_-8px_rgba(255,255,255,.25)] transition hover:bg-white ${cls}`}>
+      <ChromeLogo className={size === 'lg' ? 'size-5' : 'size-4'} />{label}
+    </a>
+  );
+}
 
 const features = [
   { tag: 'Match', title: 'A score you can trust', body: 'Reads the job straight from the page’s DOM, splits must-haves from nice-to-haves, and checks skills, years, degree and keywords. Deterministic — same input, same score.', accent: 'text-blue' },
@@ -12,32 +31,35 @@ const features = [
 
 const steps = [
   ['Upload your resume', 'PDF, DOCX or TXT. Parsed in the browser.'],
-  ['Open any job posting', 'The score appears on the toolbar icon.'],
+  ['Open any job posting', 'A score card appears on the page.'],
   ['Tailor and apply', 'Fix the gaps, export, autofill. Done.'],
 ];
 
-const sites = ['LinkedIn', 'Indeed', 'Greenhouse', 'Lever', 'Workday', 'Naukri', 'Glassdoor', 'Ashby'];
 
 function GitHubIcon() {
   return <svg viewBox="0 0 16 16" className="size-4" fill="currentColor" aria-hidden><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.81.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.83-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z" /></svg>;
 }
 
-export default function Home() {
+export default async function Home() {
+  const version = await latestVersion();
   return (
-    <main className="relative overflow-hidden">
+    <main className="relative overflow-x-clip">
       <div className="grid-bg pointer-events-none absolute inset-x-0 top-0 h-[900px]" />
 
-      {/* Nav */}
-      <nav className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-        <a href="#" className="flex items-center gap-2.5 font-semibold tracking-tight">
-          <img src="/icon.png" alt="" className="size-7" />Shortlist
-        </a>
-        <div className="flex items-center gap-6 text-sm text-dim">
-          <a href="#features" className="hidden hover:text-fg sm:block">Features</a>
-          <a href="#install" className="hidden hover:text-fg sm:block">Install</a>
-          <a href={REPO} className="flex items-center gap-2 rounded-full border border-line px-3.5 py-1.5 text-fg transition hover:border-white/30"><GitHubIcon />GitHub</a>
-        </div>
-      </nav>
+      {/* Nav (sticky) */}
+      <header className="sticky top-0 z-50 border-b border-line/70 bg-ink/70 backdrop-blur-xl supports-[backdrop-filter]:bg-ink/55">
+        <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+          <a href="#" className="flex items-center gap-2.5 font-semibold tracking-tight">
+            <img src="/icon.png" alt="" className="size-7" />Shortlist
+          </a>
+          <div className="flex items-center gap-5 text-sm text-dim">
+            <a href="#features" className="hidden hover:text-fg md:block">Features</a>
+            <a href="#install" className="hidden hover:text-fg md:block">Install</a>
+            <a href={REPO} aria-label="GitHub" className="hidden text-fg/70 hover:text-fg sm:block"><GitHubIcon /></a>
+            <DownloadButton size="sm" label="Add to Chrome" />
+          </div>
+        </nav>
+      </header>
 
       {/* Hero */}
       <section className="relative z-10 mx-auto grid max-w-6xl items-center gap-12 px-6 pt-10 pb-24 lg:grid-cols-[1fr_1.05fr] lg:pt-16">
@@ -52,20 +74,23 @@ export default function Home() {
           <p className="mt-6 max-w-md text-lg leading-relaxed text-dim">
             Shortlist reads the job page, scores your resume against it and tailors it in one click — entirely inside Chrome.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <a href={ZIP} className="rounded-full bg-fg px-6 py-3 font-medium text-ink transition hover:bg-white">Download for Chrome</a>
-            <a href={REPO} className="flex items-center gap-2 rounded-full border border-line px-6 py-3 font-medium transition hover:border-white/30"><GitHubIcon />View source</a>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <DownloadButton />
+            <a href={REPO} className="flex items-center gap-2 rounded-full border border-line px-5 py-3 font-medium transition hover:border-white/30"><GitHubIcon />View source</a>
           </div>
+          <p className="mt-4 font-mono text-xs text-dim">{version ? `${version} · ` : ''}Free · Works in Chrome, Edge &amp; Brave</p>
         </div>
         <Hero3D />
       </section>
 
       {/* Sites */}
       <section className="relative z-10 border-y border-line bg-ink-2/50">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-6 py-6 text-sm text-dim">
-          <span className="font-mono text-xs tracking-widest uppercase">Reads jobs on</span>
-          {sites.map(s => <span key={s} className="font-medium text-fg/70">{s}</span>)}
-          <span className="font-mono text-xs">+ any page</span>
+        <div className="mx-auto max-w-6xl px-6 py-7">
+          <p className="text-center font-mono text-xs tracking-widest text-dim uppercase">Works on every job site</p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-9 gap-y-5">
+            {SITES.map(s => <SiteLogo key={s.name} site={s} />)}
+            <span className="font-mono text-xs text-dim">+ any careers page</span>
+          </div>
         </div>
       </section>
 
@@ -124,7 +149,10 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <a href={ZIP} className="mt-8 inline-block rounded-full bg-fg px-6 py-3 font-medium text-ink transition hover:bg-white">Download Shortlist</a>
+          <div className="mt-8 flex flex-wrap items-center gap-4">
+            <DownloadButton label="Download Shortlist" />
+            {version && <span className="font-mono text-xs text-dim">Latest: {version}</span>}
+          </div>
         </div>
       </section>
 
