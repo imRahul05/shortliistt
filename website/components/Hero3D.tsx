@@ -20,7 +20,7 @@ export default function Hero3D() {
   return (
     <div className="scene relative mx-auto h-[440px] w-full max-w-[560px] sm:h-[500px]" onPointerMove={onMove} onPointerLeave={reset} aria-hidden>
       {/* glow */}
-      <div className="absolute inset-10 rounded-full bg-blue/30 blur-[90px]" />
+      <div className="absolute inset-16 rounded-full bg-white/[.06] blur-[90px]" />
       <div className="absolute right-6 bottom-10 h-40 w-40 rounded-full bg-mint/20 blur-[70px]" />
 
       <div ref={stage} className="stage relative h-full w-full" style={{ transform: `rotateX(${BASE.x}deg) rotateY(${BASE.y}deg)` }}>
@@ -50,9 +50,8 @@ export default function Hero3D() {
           <div className="flex items-center gap-4">
             <svg viewBox="0 0 110 110" className="size-24 -rotate-90">
               <circle cx="55" cy="55" r="46" fill="none" stroke="rgb(255 255 255 / .08)" strokeWidth="10" />
-              <circle className="ring" cx="55" cy="55" r="46" fill="none" stroke="url(#g)" strokeWidth="10" strokeLinecap="round" strokeDasharray="289" strokeDashoffset="52" />
-              <defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stopColor="#4f7cff" /><stop offset="1" stopColor="#3ee6a8" /></linearGradient></defs>
-            </svg>
+              <circle className="ring" cx="55" cy="55" r="46" fill="none" stroke="#3ee6a8" strokeWidth="10" strokeLinecap="round" strokeDasharray="289" strokeDashoffset="52" />
+                          </svg>
             <div>
               <div className="text-3xl font-semibold tracking-tight">82<span className="text-base text-dim">%</span></div>
               <div className="text-sm font-medium text-mint">Strong match</div>
@@ -61,7 +60,7 @@ export default function Hero3D() {
           <div className="mt-4 space-y-2">
             {[['Skills', 86], ['Experience', 100], ['Keywords', 71]].map(([k, v]) => (
               <div key={k} className="grid grid-cols-[70px_1fr] items-center gap-2 text-[11px] text-dim">
-                {k}<div className="h-1.5 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-gradient-to-r from-blue to-mint" style={{ width: `${v}%` }} /></div>
+                {k}<div className="h-1.5 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-mint" style={{ width: `${v}%` }} /></div>
               </div>
             ))}
           </div>

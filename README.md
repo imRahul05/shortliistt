@@ -15,10 +15,12 @@ Free, private job-application helper. No sign-in, no API keys, no servers. Every
 | Read the job | From the page's HTML (the DOM): schema.org `JobPosting` data first, then site-specific selectors (LinkedIn, Indeed, Greenhouse, Lever, Workday, Naukri, Glassdoor, Ashby, Dice, …), then a text-density heuristic. Text you select on the page overrides all of these. | No |
 | Match score | About 250 skills with aliases. Detects **must-have / important / nice-to-have** from the job's sections. Adds years of experience (from your resume's date ranges), degree, title and ATS keyword coverage. Each missing must-have caps the score. | No |
 | Suggestions | Missing and related skills, experience gaps, keywords, unquantified bullets, weak verbs, missing sections and contact info. | No |
+| Floating score card | Appears on any detected job page (LinkedIn search & job view, SPA job switches included) with the match %, must-haves and missing skills. Minimise to a pill, hide per page, or choose the corner in Settings. **Full report** opens the side panel. | No |
 | Toolbar badge | Shows the match % on job pages automatically. | No |
 | Resume Studio | Live editor and preview with the score updating as you type. One-click: add missing skills, order skills by relevance, put relevant bullets first, generate a summary. Export **PDF** (print → Save as PDF), **DOCX** or **TXT**. | No |
 | Autofill | Fills name, email, phone, LinkedIn/GitHub, location, title, years, notice period and salary, and attaches your resume file. Works in iframes too (e.g. Greenhouse embeds). | No |
-| AI review, AI summary, AI bullet rewrite, cover letter, application answers | Chrome's **built-in Gemini Nano** (Prompt API), running on your device | Optional |
+| Resume auto-detection | Experience timeline from date ranges (`Sep 2025 – Present`, `2025-09`, `Sep '25`, `Since …`), skills, title, company, location — editable in Profile. | No |
+| AI layer | Chrome's **built-in Gemini Nano**: fills gaps in resume parsing (extra skills, years when no dates), gives a second-opinion read of job requirements, review, summary, bullet rewrites, cover letter, application answers. Never changes the deterministic score. | Optional |
 
 ### About the on-device AI
 * Uses `LanguageModel` (Chrome's Prompt API, available to extensions since Chrome 138). It is free and local, with no key.
