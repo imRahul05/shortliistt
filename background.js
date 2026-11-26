@@ -22,7 +22,7 @@ async function scoreTab(tabId) {
   const color = m.score >= 75 ? '#16a34a' : m.score >= 55 ? '#d97706' : '#dc2626';
   await chrome.action.setBadgeBackgroundColor({ tabId, color });
   await chrome.action.setBadgeText({ tabId, text: String(m.score) });
-  await chrome.action.setTitle({ tabId, title: `JobFit: ${m.score}% — ${m.verdict}\n${res.title}` });
+  await chrome.action.setTitle({ tabId, title: `Shortlist: ${m.score}% — ${m.verdict}\n${res.title}` });
 }
 
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {

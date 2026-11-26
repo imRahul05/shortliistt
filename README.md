@@ -1,12 +1,12 @@
-# JobFit — Local Job Match & Resume Tailor (Chrome extension)
+# Shortlist — Local Job Match & Resume Tailor (Chrome extension)
 
 Free, private job-application helper. No sign-in, no API keys, no servers. Everything runs in your browser.
 
 ## Install (2 minutes)
-1. Unzip `jobfit-extension.zip`.
+1. Unzip `shortlist.zip`.
 2. Open `chrome://extensions`, turn on **Developer mode** (top right).
-3. Click **Load unpacked** and select the unzipped `jobfit-extension` folder.
-4. Pin JobFit and click the icon (or press **Alt+J**). The side panel opens.
+3. Click **Load unpacked** and select the unzipped `shortlist` folder.
+4. Pin Shortlist and click the icon (or press **Alt+J**). The side panel opens.
 5. **Profile** tab: drop your resume (PDF / DOCX / TXT). Check the auto-filled profile fields.
 
 ## What it does
@@ -23,7 +23,7 @@ Free, private job-application helper. No sign-in, no API keys, no servers. Every
 ### About the on-device AI
 * Uses `LanguageModel` (Chrome's Prompt API, available to extensions since Chrome 138). It is free and local, with no key.
 * Needs desktop Chrome on Windows / macOS / Linux / ChromeOS, about 22 GB free disk, and a GPU with more than 4 GB VRAM or 16 GB RAM. Click **“Enable on-device AI”** in the panel header once to download the model.
-* If it isn't available, JobFit falls back to rule-based tools and templates. Matching never uses AI, so scores are deterministic and explainable.
+* If it isn't available, Shortlist falls back to rule-based tools and templates. Matching never uses AI, so scores are deterministic and explainable.
 * Prompts tell the model never to invent employers, dates, metrics or skills. AI bullet rewrites are shown as a diff you accept or reject line by line.
 
 ## Privacy

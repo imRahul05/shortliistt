@@ -36,7 +36,7 @@ function aiSetupHelp() {
   if (!S.settings.useAI) return 'AI is turned off. All matching stays rule-based.';
   if (aiState === 'available') return '✅ Gemini Nano is ready and runs fully on your device.';
   if (aiState === 'downloadable' || aiState === 'downloading') return 'Click the “Enable on-device AI” badge at the top to download Chrome’s built-in model once (needs ~22 GB free disk, 4 GB+ VRAM or 16 GB RAM).';
-  return 'This browser/device does not expose Chrome’s built-in AI (needs desktop Chrome 138+ on Windows, macOS, Linux or ChromeOS with enough memory). JobFit still works fully with rule-based matching and templates.';
+  return 'This browser/device does not expose Chrome’s built-in AI (needs desktop Chrome 138+ on Windows, macOS, Linux or ChromeOS with enough memory). Shortlist still works fully with rule-based matching and templates.';
 }
 $('#aiPill').addEventListener('click', async () => {
   if (aiState !== 'downloadable') return;
