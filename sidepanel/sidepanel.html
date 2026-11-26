@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JobFit</title>
+<link rel="stylesheet" href="../lib/ui.css">
+<link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="../icons/icon32.png" alt=""><span>JobFit</span></div>
+  <span id="aiPill" class="pill" title="On-device AI status">Checking AI…</span>
+</header>
+<nav class="tabs">
+  <button data-tab="match" class="active">Match</button>
+  <button data-tab="apply">Apply</button>
+  <button data-tab="profile">Profile</button>
+</nav>
+
+<main>
+  <!-- ============ MATCH ============ -->
+  <section id="tab-match">
+    <div id="needResume" class="card callout" hidden>
+      <b>Start here:</b> upload your resume (PDF, DOCX or TXT). It is parsed and stored only in this browser.
+      <div class="row" style="margin-top:8px"><button class="btn primary small" data-goto="profile">Upload resume</button></div>
+    </div>
+
+    <div class="row">
+      <button id="scanBtn" class="btn primary">↻ Analyze this page</button>
+      <button id="editJobBtn" class="btn ghost small">Edit job text</button>
+    </div>
+
+    <div id="jobCard" class="card job" hidden>
+      <div class="job-title" id="jobTitle"></div>
+      <div class="muted small" id="jobMeta"></div>
+    </div>
+
+    <div id="jobEditor" class="card" hidden>
+      <label class="field">Job title<input type="text" id="jeTitle"></label>
+      <label class="field">Company<input type="text" id="jeCompany"></label>
+      <label class="field">Job description<textarea id="jeDesc" rows="10" placeholder="Paste or fix the job description here"></textarea></label>
+      <div class="row"><button id="jeApply" class="btn primary small">Re-score</button><button id="jeCancel" class="btn ghost small">Close</button></div>
+    </div>
+
+    <div id="noJob" class="card callout" hidden>
+      <b>No job description detected on this page.</b>
+      <p class="muted small">Open a job posting, or select the description text on the page and click Analyze. You can also paste it via “Edit job text”.</p>
+    </div>
+
+    <div id="result" hidden>
+      <div class="card scorecard">
+        <div class="ring-wrap">
+          <svg viewBox="0 0 120 120" class="ring"><circle cx="60" cy="60" r="52" class="ring-bg"/><circle cx="60" cy="60" r="52" class="ring-fg" id="ringFg"/></svg>
+          <div class="ring-num"><span id="scoreNum">0</span><small>%</small></div>
+        </div>
+        <div class="score-side">
+          <div class="verdict" id="verdict"></div>
+          <div id="bars" class="bars"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Skills <span class="legend"><i class="d matched"></i>have <i class="d implied"></i>implied <i class="d related"></i>related <i class="d missing"></i>missing</span></h3>
+        <div id="skillGroups"></div>
+        <p class="muted small hint">Tip: click a red skill if you actually have it — it’s added to your profile skills and the score updates.</p>
+      </div>
+
+      <div class="card">
+        <h3>Experience &amp; education</h3>
+        <div id="facts" class="facts"></div>
+      </div>
+
+      <div class="card">
+        <h3>Job keywords (ATS)</h3>
+        <div id="keywords" class="chips"></div>
+      </div>
+
+      <div class="card">
+        <h3>Suggestions</h3>
+        <ul id="sugs" class="sugs"></ul>
+      </div>
+
+      <div class="card ai-card">
+        <h3>AI review <span class="muted small" style="text-transform:none;letter-spacing:0">· on-device</span></h3>
+        <div id="aiInsights" class="md muted small">Get a short, honest fit review written by Chrome’s built-in model. Nothing leaves your computer.</div>
+        <div class="row" style="margin-top:8px"><button id="aiInsightsBtn" class="btn small">✨ Generate review</button></div>
+      </div>
+
+      <button id="tailorBtn" class="btn primary block">✎ Tailor my resume for this job</button>
+    </div>
+  </section>
+
+  <!-- ============ APPLY ============ -->
+  <section id="tab-apply" hidden>
+    <div class="card">
+      <h3>Autofill application</h3>
+      <p class="muted small">Fills name, email, phone, links, location, title and experience on the current page — and attaches your resume file when there is a resume upload field. Review before submitting.</p>
+      <div class="row"><button id="autofillBtn" class="btn primary">⚡ Autofill this form</button><span id="autofillStatus" class="muted small"></span></div>
+    </div>
+
+    <div class="card">
+      <h3>Application question</h3>
+      <textarea id="qText" rows="3" placeholder="e.g. Why do you want to work here?  /  Describe a challenging project."></textarea>
+      <div class="row" style="margin:8px 0"><button id="qBtn" class="btn small">✨ Draft answer</button></div>
+      <textarea id="qOut" rows="7" placeholder="Your draft answer appears here — edit freely."></textarea>
+      <div class="row" style="margin-top:6px"><button class="btn small ghost" data-copy="qOut">Copy</button></div>
+    </div>
+
+    <div class="card">
+      <h3>Cover letter</h3>
+      <div class="row" style="margin-bottom:8px"><button id="clBtn" class="btn small">✨ Write cover letter</button></div>
+      <textarea id="clOut" rows="10" placeholder="Generated for the job currently analyzed."></textarea>
+      <div class="row" style="margin-top:6px"><button class="btn small ghost" data-copy="clOut">Copy</button><button id="clDl" class="btn small ghost">Download .txt</button></div>
+    </div>
+
+    <div class="card">
+      <h3>Recent jobs</h3>
+      <ul id="history" class="history"></ul>
+    </div>
+  </section>
+
+  <!-- ============ PROFILE ============ -->
+  <section id="tab-profile" hidden>
+    <div class="card">
+      <h3>Resume</h3>
+      <label id="drop" class="drop">
+        <input type="file" id="fileIn" accept=".pdf,.docx,.txt,.md,application/pdf" hidden>
+        <div class="drop-icon">📄</div>
+        <div><b>Drop your resume</b> or click to browse</div>
+        <div class="muted small">PDF, DOCX or TXT · parsed locally</div>
+      </label>
+      <div id="fileInfo" class="muted small" style="margin-top:8px"></div>
+      <details id="resumeTextBox" style="margin-top:8px">
+        <summary class="small">View / correct extracted text</summary>
+        <textarea id="resumeText" rows="14" style="margin-top:6px"></textarea>
+        <div class="row" style="margin-top:6px"><button id="saveResumeText" class="btn small">Save text</button><span class="muted small">Fix parsing glitches here; matching uses this text.</span></div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h3>Profile</h3>
+      <form id="profileForm" autocomplete="off">
+        <label class="field">Full name<input type="text" name="name"></label>
+        <div class="grid2">
+          <label class="field">Email<input type="email" name="email"></label>
+          <label class="field">Phone<input type="tel" name="phone"></label>
+        </div>
+        <label class="field">Target job title<input type="text" name="targetTitle" placeholder="e.g. Senior Software Engineer"></label>
+        <div class="grid2">
+          <label class="field">Years of experience<input type="number" step="0.5" min="0" name="yearsExperience" placeholder="auto from resume"></label>
+          <label class="field">Location<input type="text" name="location" placeholder="City, Country"></label>
+        </div>
+        <div class="grid2">
+          <label class="field">Current company<input type="text" name="currentCompany"></label>
+          <label class="field">Notice period<input type="text" name="noticePeriod" placeholder="e.g. 30 days"></label>
+        </div>
+        <div class="grid2">
+          <label class="field">Current salary<input type="text" name="currentSalary"></label>
+          <label class="field">Expected salary<input type="text" name="expectedSalary"></label>
+        </div>
+        <label class="field">LinkedIn URL<input type="url" name="linkedin"></label>
+        <div class="grid2">
+          <label class="field">GitHub URL<input type="url" name="github"></label>
+          <label class="field">Portfolio URL<input type="url" name="portfolio"></label>
+        </div>
+        <label class="field">Extra skills you have (comma separated)<textarea name="extraSkills" rows="2" placeholder="Skills not written in your resume but true for you"></textarea></label>
+      </form>
+      <div class="muted small" id="profileSaved"></div>
+    </div>
+
+    <div class="card">
+      <h3>Settings</h3>
+      <label class="toggle"><input type="checkbox" id="setBadge"> Show match score on the toolbar icon for job pages</label>
+      <label class="toggle"><input type="checkbox" id="setAI"> Use on-device AI when available</label>
+      <div id="aiSetup" class="muted small" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card privacy">
+      <b>🔒 Private by design.</b> <span class="muted small">No accounts, no API keys, no servers. Your resume, profile and job data live in <code>chrome.storage</code> on this device. AI (if available) is Chrome’s built-in Gemini Nano running locally.</span>
+      <div class="row" style="margin-top:8px"><button id="wipe" class="btn small ghost">Delete all my data</button></div>
+    </div>
+  </section>
+</main>
+<script type="module" src="sidepanel.js"></script>
+</body>
+</html>

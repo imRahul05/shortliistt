@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JobFit Resume Studio</title>
+<link rel="stylesheet" href="../lib/ui.css">
+<link rel="stylesheet" href="studio.css">
+<style id="resumeCss"></style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><img src="../icons/icon32.png" alt=""><b>Resume Studio</b></div>
+  <div class="job-chip" id="jobChip">No job selected</div>
+  <div class="score-live" id="scoreLive" title="Live match score for this job"></div>
+  <div class="spacer"></div>
+  <select id="tpl" title="Template">
+    <option value="classic">Classic</option><option value="modern">Modern</option><option value="compact">Compact</option><option value="serif">Serif</option>
+  </select>
+  <label class="toggle small"><input type="checkbox" id="hl" checked> Highlight job skills</label>
+  <button class="btn small ghost" id="resetBtn" title="Discard edits and reload your uploaded resume">Reset</button>
+  <button class="btn small" id="txtBtn">TXT</button>
+  <button class="btn small" id="docxBtn">DOCX</button>
+  <button class="btn small primary" id="pdfBtn">⬇ PDF</button>
+</header>
+
+<div class="layout">
+  <aside class="left">
+    <div class="card tailor" id="tailor">
+      <h3 id="tailorTitle">Tailor for this job</h3>
+      <div id="noJobMsg" class="muted small" hidden>Open a job posting and click “Tailor my resume” in the JobFit side panel to see live matching here. You can still edit and export your resume.</div>
+      <div id="tailorBody">
+        <div class="score-row">
+          <div><div class="big" id="scoreNow">–</div><div class="muted small">now</div></div>
+          <div class="arrow">←</div>
+          <div><div class="big muted" id="scoreBase">–</div><div class="muted small">original</div></div>
+          <div class="verdict" id="verdictNow"></div>
+        </div>
+
+        <div class="block">
+          <div class="label">Missing skills <span class="muted">— click the ones you truly have to add them to Skills</span></div>
+          <div class="chips" id="missChips"></div>
+        </div>
+        <div class="block">
+          <div class="label">Missing job keywords <span class="muted">— weave in where truthful</span></div>
+          <div class="chips" id="kwChips"></div>
+        </div>
+
+        <div class="block">
+          <div class="label">One-click tailoring <span class="muted">(rule-based, instant)</span></div>
+          <div class="row">
+            <button class="btn small" id="reorderBtn">Order skills by relevance</button>
+            <button class="btn small" id="bulletsBtn">Relevant bullets first</button>
+            <button class="btn small" id="sumBtn">Generate summary</button>
+          </div>
+        </div>
+
+        <div class="block ai-block" id="aiBlock">
+          <div class="label">✨ On-device AI <span class="muted" id="aiState"></span></div>
+          <div class="row">
+            <button class="btn small" id="aiSumBtn">AI summary</button>
+            <select id="aiSec" class="sec-select"></select>
+            <button class="btn small" id="aiBulBtn">AI rewrite bullets</button>
+          </div>
+          <div id="aiOut" class="ai-out" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card editor">
+      <h3>Edit resume <span class="muted small" style="text-transform:none;letter-spacing:0">· lines starting with “- ” are bullets · **bold** supported</span></h3>
+      <label class="field">Name<input type="text" id="fName"></label>
+      <label class="field">Headline<input type="text" id="fHeadline" placeholder="e.g. Senior Software Engineer · Java · AWS"></label>
+      <label class="field">Contact (separate with |)<input type="text" id="fContact"></label>
+      <div id="sections"></div>
+      <div class="row"><button class="btn small" id="addSec">+ Add section</button></div>
+    </div>
+  </aside>
+
+  <main class="preview-wrap">
+    <div class="page" id="page"></div>
+  </main>
+</div>
+<script type="module" src="studio.js"></script>
+</body>
+</html>
