@@ -19,7 +19,7 @@ Free, private job-application helper. No sign-in, no API keys, no servers. Every
 | Toolbar badge | Shows the match % on job pages automatically. | No |
 | Resume Studio | Keeps your original formatting: bold/italic, **hyperlinks**, right-aligned dates and links, and a **LaTeX** style (bundled Computer Modern) for LaTeX resumes. **Fit to 1 page** or allow 2 pages (it asks when needed), Letter/A4, page-break guides. Live score, one-click tailoring. Export PDF, DOCX (with links) or TXT. | No |
 | Cover letter | Drafted automatically for every job from your profile, best-matching experience and a relevant project; **Generate with AI** for a fully written version. Same header as your resume; export PDF/DOCX. | Optional |
-| Autofill | Fills name, email, phone, LinkedIn/GitHub, location, title, years, notice period and salary, and attaches your resume file. Works in iframes too (e.g. Greenhouse embeds). | No |
+| Autofill | Detects **create-account**, **sign-in** and **application** forms (Workday, Greenhouse, Lever, iCIMS…). Fills name, email, phone, links, location, experience and attaches your resume. On sign-up it creates a **strong password** (saved per site, shown in Apply → Saved login) and reuses it on sign-in. The page's own buttons (*Create Account*, *Sign In*, *Next*) are mirrored in the card and side panel. Terms/consent boxes are never ticked for you. | No |
 | Resume auto-detection | Experience timeline from date ranges (`Sep 2025 – Present`, `2025-09`, `Sep '25`, `Since …`), skills, title, company, location — editable in Profile. | No |
 | AI layer | Chrome's **built-in Gemini Nano**: fills gaps in resume parsing (extra skills, years when no dates), gives a second-opinion read of job requirements, review, summary, bullet rewrites, cover letter, application answers. Never changes the deterministic score. | Optional |
 
@@ -30,7 +30,7 @@ Free, private job-application helper. No sign-in, no API keys, no servers. Every
 * Prompts tell the model never to invent employers, dates, metrics or skills. AI bullet rewrites are shown as a diff you accept or reject line by line.
 
 ## Privacy
-Your resume, profile, history and tailored resumes are stored in `chrome.storage.local` on your machine. **Profile → Delete all my data** wipes them. The extension makes no network requests.
+Your resume, profile, history, tailored resumes and any site logins Shortlist creates are stored in `chrome.storage.local` on your machine (not synced, not encrypted at rest — treat it like a browser profile). **Profile → Delete all my data** wipes them. The extension makes no network requests.
 
 ## Architecture
 

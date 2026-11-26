@@ -5,7 +5,6 @@ import { extractResumeFile, cleanResumeText, stripRich } from '../lib/resume-par
 import { templateLetter, defaultLetterMeta, relevantEntries } from '../lib/letter.js';
 import { parseResumeModel, modelSections } from '../lib/resume-model.js';
 import { aiAvailability, AI_LABEL, aiInsights, aiAnswer, aiCoverLetter, downloadModel, aiParseResume, aiJobRequirements } from '../lib/ai.js';
-import { autofillPage } from '../lib/autofill.js';
 import { $, $$, toast, md, download, busy, scoreClass, scoreColor, ICON, MARK, fmtMonths, fmtMonth } from '../lib/ui.js';
 import { escapeHtml as esc, debounce } from '../lib/text.js';
 
@@ -37,7 +36,7 @@ $$('.card.collapsible').forEach(card => {
 function showTab(name) {
   $$('.seg button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   $$('main > section').forEach(s => (s.hidden = s.id !== `tab-${name}`));
-  if (name === 'apply') autoLetter();
+  if (name === 'apply') { autoLetter(); refreshForm(); }
 }
 $$('.seg button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 document.addEventListener('click', e => {
@@ -260,17 +259,92 @@ $('#tailorBtn').addEventListener('click', async () => {
 });
 
 /* ---------------- Apply tab ---------------- */
+/* ---------------- Apply: form detection, autofill (incl. account creation), page buttons ---------------- */
+let formScan = null;
+const KIND = {
+  signup: ['Create-account form', 'Fills your name and email and creates a strong password, saved here so you can sign in later.', 'Autofill & create password'],
+  signin: ['Sign-in form', '', 'Fill saved login'],
+  application: ['Application form', 'Fills your details and attaches your resume. Review before submitting.', 'Autofill this page'],
+  none: ['No form on this page', 'Open a job application, sign-up or sign-in page (Workday, Greenhouse, Lever…).', 'Autofill this page'],
+};
+async function refreshForm() {
+  if ($('#tab-apply').hidden) return;
+  const t = await activeTab();
+  if (!t || !/^https?:/.test(t.url || '')) { formScan = { kind: 'none', actions: [] }; return renderForm(); }
+  formScan = await chrome.runtime.sendMessage({ type: 'form-scan', tabId: t.id }).catch(() => ({ kind: 'none', actions: [] }));
+  formScan.tabId = t.id;
+  renderForm(); renderVault();
+}
+function renderForm() {
+  const f = formScan || { kind: 'none', actions: [] };
+  const [title, hint, btn] = KIND[f.kind] || KIND.none;
+  $('#formKind').className = 'form-kind ' + f.kind;
+  $('#formKindText').textContent = title + (f.kind === 'application' && f.empty ? ` · ${f.empty} empty field${f.empty === 1 ? '' : 's'}` : '');
+  $('#formHost').textContent = f.host || '';
+  $('#formHint').textContent = f.kind === 'signin' ? (f.account ? `Uses your saved login (${f.account.email || 'email'}).` : 'No saved login for this site yet — fills your email only.') : hint;
+  const b = $('#autofillBtn'); b.lastChild.textContent = ' ' + btn; b.disabled = f.kind === 'none';
+  const acts = f.actions || [];
+  $('#pageActionsWrap').hidden = !acts.length;
+  $('#pageActions').innerHTML = acts.slice(0, 6).map((a, i) => `<button class="btn small ${a.primary && i === acts.findIndex(x => x.primary) ? 'primary' : ''}" data-key="${esc(a.key)}" data-frame="${a.frameId}">${esc(a.label)}</button>`).join('');
+}
 $('#autofillBtn').addEventListener('click', async () => {
   const t = await activeTab();
   if (!t || !/^https?:/.test(t.url || '')) return toast('Open an application form first');
+  if (!S.profile.email) toast('Tip: add your email in Profile so it can be filled', 3000);
   const btn = $('#autofillBtn'); busy(btn, true, 'Filling…');
+  const note = $('#autofillStatus');
   try {
-    const file = S.resume?.fileData ? { dataURL: S.resume.fileData, name: S.resume.fileName } : null;
-    const res = await chrome.scripting.executeScript({ target: { tabId: t.id, allFrames: true }, func: autofillPage, args: [S.profile, file] });
-    const tot = res.reduce((a, r) => ({ filled: a.filled + (r.result?.filled || 0), attached: a.attached + (r.result?.attached || 0) }), { filled: 0, attached: 0 });
-    $('#autofillStatus').textContent = tot.filled || tot.attached ? `${tot.filled} field${tot.filled === 1 ? '' : 's'} filled${tot.attached ? ' · resume attached' : ''}` : 'No empty fields matched';
-  } catch (e) { $('#autofillStatus').textContent = 'Can’t access this page'; }
+    const r = await chrome.runtime.sendMessage({ type: 'autofill', tabId: t.id });
+    if (r?.error) throw new Error(r.error);
+    const bits = [];
+    if (r.filled) bits.push(`${r.filled} field${r.filled === 1 ? '' : 's'} filled`);
+    if (r.passwordFilled) bits.push(r.generated ? 'strong password created and saved below' : 'saved password filled');
+    if (r.attached) bits.push('resume attached');
+    let html = esc(bits.length ? bits.join(' · ') : 'Nothing new to fill — the fields already have values') + '.';
+    if (r.terms) html += ' <b>Tick the terms/consent checkbox on the page yourself.</b>';
+    const prim = r.actions?.find(a => a.primary);
+    if (prim && (r.filled || r.passwordFilled)) html += ` Then press <b style="color:inherit">${esc(prim.label)}</b> below or on the page.`;
+    note.innerHTML = html; note.hidden = false;
+  } catch (e) { note.textContent = e.message || 'Can’t access this page'; note.hidden = false; }
   busy(btn, false);
+  refreshForm();
+});
+$('#pageActions').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-key]'); if (!b || !formScan?.tabId) return;
+  const r = await chrome.runtime.sendMessage({ type: 'page-action', tabId: formScan.tabId, key: b.dataset.key, frameId: +b.dataset.frame });
+  if (!r?.ok) toast('That button is no longer on the page'); else toast(`Clicked “${b.textContent}”`);
+  setTimeout(refreshForm, 1500);
+});
+
+/* Saved logins created by Shortlist (per site) */
+async function renderVault() {
+  const host = formScan?.host;
+  const { accounts = {} } = await chrome.storage.local.get('accounts');
+  const acc = host && accounts[host];
+  $('#vaultCard').hidden = !acc;
+  if (!acc) return;
+  $('#vaultHost').textContent = host;
+  $('#vEmail').textContent = acc.email || '—';
+  $('#vPass').textContent = '••••••••••••'; $('#vShow').textContent = 'Show';
+  $('#vWhen').textContent = acc.at ? 'on ' + new Date(acc.at).toLocaleDateString() : '';
+  $('#vaultCard').dataset.host = host;
+}
+async function vaultAcc() { const { accounts = {} } = await chrome.storage.local.get('accounts'); return accounts[$('#vaultCard').dataset.host]; }
+$('#vShow').addEventListener('click', async () => {
+  const a = await vaultAcc(); if (!a) return;
+  const showing = $('#vShow').textContent === 'Hide';
+  $('#vPass').textContent = showing ? '••••••••••••' : a.password; $('#vShow').textContent = showing ? 'Show' : 'Hide';
+});
+$('#vaultCard').addEventListener('click', async e => {
+  const c = e.target.closest('[data-copyv]'); if (!c) return;
+  const a = await vaultAcc(); if (!a) return;
+  await navigator.clipboard.writeText(a[c.dataset.copyv] || ''); toast('Copied');
+});
+$('#vForget').addEventListener('click', async () => {
+  const host = $('#vaultCard').dataset.host;
+  if (!confirm(`Forget the saved login for ${host}? Make sure you have saved the password elsewhere.`)) return;
+  const { accounts = {} } = await chrome.storage.local.get('accounts'); delete accounts[host];
+  await save({ accounts }); renderVault();
 });
 
 $('#qBtn').addEventListener('click', async () => {
@@ -499,7 +573,7 @@ $('#wipe').addEventListener('click', async () => {
 });
 
 /* ---------------- Live updates ---------------- */
-const autoScan = debounce(scan, 900);
+const autoScan = debounce(() => { scan(); refreshForm(); }, 900);
 chrome.tabs.onActivated.addListener(() => autoScan());
 chrome.tabs.onUpdated.addListener((id, info, tab) => { if (tab.active && (info.status === 'complete' || info.url)) autoScan(); });
 chrome.runtime.onMessage.addListener(msg => {

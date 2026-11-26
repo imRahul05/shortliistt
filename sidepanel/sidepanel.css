@@ -76,6 +76,19 @@ main{padding:0 16px 24px}
 .sticky{position:sticky;bottom:0;padding:10px 0 2px;background:linear-gradient(to bottom,transparent,var(--bg) 35%)}
 .sticky .btn svg{width:15px;height:15px}
 .lead{margin:0 0 10px}
+.form-kind{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px;margin-bottom:4px}
+.kind-dot{width:8px;height:8px;border-radius:99px;background:var(--faint)}
+.form-kind.signup .kind-dot{background:var(--ai)}.form-kind.signin .kind-dot{background:var(--good)}.form-kind.application .kind-dot{background:var(--warn)}
+.fill-note{margin-top:10px;font-size:12.5px;line-height:1.5;background:var(--panel-2);border-radius:8px;padding:9px 11px}
+.fill-note b{color:var(--warn);font-weight:600}
+.page-actions{display:flex;flex-wrap:wrap;gap:6px}
+.page-actions .btn{height:30px}
+.page-actions .btn.primary{min-width:0}
+.cred{display:flex;align-items:center;gap:6px;padding:6px 0;border-top:1px solid var(--line);font-size:12.5px}
+.cred:first-of-type{border-top:0}
+.cred .k{color:var(--muted);width:68px;flex:none}
+.cred .v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linkish{all:unset;cursor:pointer;color:var(--bad);text-decoration:underline;text-underline-offset:2px}
 
 /* profile */
 .drop{display:flex;flex-direction:column;align-items:center;gap:4px;padding:20px 12px;border:1px dashed var(--line);border-radius:10px;cursor:pointer;text-align:center;transition:.12s;background:var(--panel-2)}

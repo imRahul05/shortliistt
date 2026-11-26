@@ -161,6 +161,18 @@ var __shortlistExtract = __shortlistExtract || (() => {
     return { title: txt('h1') || document.title, company: '', description: nodeToText(best), source: 'page heuristic', weak: signalCount(best.textContent) < 4 };
   }
 
+  // Heuristic sources (block/heading/density) must also look like a job page — avoids portfolios, blogs, resumes.
+  const STRONG = new Set(['structured data', 'your selection']);
+  function jobContext() {
+    if (/apply|career|jobs?\b|job[-_/]|position|opening|vacanc|requisition|recruit|hiring|posting/i.test(location.pathname + location.search + ' ' + location.hostname)) return true;
+    if (/\b(jobs?|careers?|hiring|vacanc(y|ies)|opening|position)\b/i.test(document.title)) return true;
+    for (const el of document.querySelectorAll('a, button, [role=button], input[type=submit]')) {
+      const t = (el.textContent || el.value || '').replace(/\s+/g, ' ').trim();
+      if (t.length < 40 && /^(easy )?apply( now| for (this|the) (job|role|position))?$|^submit (your )?application$|^i'?m interested$/i.test(t)) return true;
+    }
+    return false;
+  }
+
   return function extract() {
     if (!document.body) return { ok: false };
     const sel = (window.getSelection?.().toString() || '').trim();
@@ -194,7 +206,7 @@ var __shortlistExtract = __shortlistExtract || (() => {
       location: clean(job.location).slice(0, 120),
       description: job.description.slice(0, 30000),
       source: job.source,
-      confident: !job.weak,
+      confident: !job.weak && (STRONG.has(job.source) || SITES.some(x => x.name === job.source) || jobContext()),
     };
   };
 })();
