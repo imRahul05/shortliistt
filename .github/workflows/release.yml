@@ -3,9 +3,14 @@ name: Release extension
 on:
   push:
     branches: [main]
+    # Only extension changes create a release. Landing page, docs, tests and CI edits don't.
+    # (Keep in sync with the excludes in "Build zip"; run manually via workflow_dispatch if needed.)
     paths-ignore:
       - 'website/**'
+      - 'test/**'
+      - '.github/**'
       - '**.md'
+      - '.gitignore'
   workflow_dispatch:
 
 permissions:
@@ -38,7 +43,9 @@ jobs:
         run: |
           VERSION=${{ steps.v.outputs.version }}
           mkdir -p dist/ext
-          cp -r manifest.json background.js content lib sidepanel studio icons README.md dist/ext/
+          # Ship everything except non-extension folders, so new extension folders are never forgotten.
+          tar --exclude='./.*' --exclude='./website' --exclude='./test' --exclude='./dist' --exclude='node_modules' -cf - . | tar -xf - -C dist/ext
+          test -f dist/ext/manifest.json && test -d dist/ext/offscreen
           node -e "
             const fs=require('fs'), p='dist/ext/manifest.json';
             const m=JSON.parse(fs.readFileSync(p)); m.version='$VERSION';
