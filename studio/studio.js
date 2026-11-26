@@ -25,7 +25,7 @@ model.pages ||= 1; model.pageSize ||= 'Letter'; model.template ||= 'classic';
 let letter = letters[jobKey] || { ...defaultLetterMeta(jobA), body: '' };
 let doc = location.hash === '#letter' ? 'letter' : 'resume';
 let match = null, aiState = 'unsupported', scale = 1;
-const prof = () => effectiveProfile(S.resume, S.profile);
+const prof = () => effectiveProfile(S.resume, S.profile, S.profileData);
 const baseScore = jobA && S.resume?.text ? matchJob(jobA, { text: S.resume.text, sections: S.resume.sections, profile: prof() }).score : null;
 
 const KINDS = ['summary', 'experience', 'skills', 'education', 'projects', 'certifications', 'awards', 'other'];
