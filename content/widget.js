@@ -78,11 +78,15 @@
     .pill .mark{width:20px;height:20px;border-radius:99px}
     .dot{width:7px;height:7px;border-radius:99px}
     .muted{color:var(--mut)}
+    .note{margin-top:10px;font-size:12px;line-height:1.45;color:var(--fg);background:var(--soft);border-radius:8px;padding:8px 10px}
+    .note b{font-weight:600;color:var(--warn)}
     .btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px}
     .btns .btn{margin-top:0}
     .btn.ai{background:#2563eb;color:#fff;box-shadow:0 1px 2px rgba(37,99,235,.3),inset 0 1px 0 rgba(255,255,255,.15)}
     .btn.ai svg{width:12px;height:12px}
-    .btn.ghost{background:var(--soft);color:var(--fg)}
+    .btn.ghost{background:var(--soft);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line)}
+    .btn svg{width:12px;height:12px}
+    .btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px}
     .ai-box{margin-top:12px;padding:10px 11px;border-radius:10px;background:#eef3ff;color:#16244a;font-size:12.3px;line-height:1.5;max-height:240px;overflow:auto;border:1px solid #d6e1fb}
     @media (prefers-color-scheme:dark){.ai-box{background:#152342;color:#dbe6ff;border-color:#22386a}}
     .ai-box p{margin:0 0 6px}.ai-box ul{margin:2px 0 6px;padding-left:16px}.ai-box li{margin:2px 0}.ai-box b{font-weight:600}
@@ -95,6 +99,7 @@
     mark: '<svg viewBox="0 0 24 24" fill="none" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     min: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 12h12"/></svg>',
     x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
     spark: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>',
     arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
   };
@@ -154,19 +159,108 @@
     if (a === 'expand') { sessionStorage.removeItem('shortlist-min'); render(state, lastJob); }
     if (a === 'open') send({ type: 'open-panel' });
     if (a === 'ai-panel') send({ type: 'open-panel-with', action: 'ai-insights' });
-    if (a === 'ai') {
-      aiHtml = '<span class="spin"></span>Reading the job and your resume…';
-      render(state, lastJob);
-      const h = lastHash;
-      const r = await send({ type: 'ai-insights', job: lastJob });
-      if (h !== lastHash) return;
-      if (r?.text) aiHtml = mdLite(r.text);
-      else if (r?.error === 'downloadable' || r?.error === 'downloading') aiHtml = 'Chrome’s built-in AI needs a one-time download. <a href="#" data-a="ai-panel">Enable it in Shortlist</a>.';
-      else if (r?.error === 'unsupported' || r?.error === 'unavailable') aiHtml = 'This Chrome doesn’t have built-in AI (desktop Chrome 138+ needed). The score above works without it.';
-      else aiHtml = 'AI couldn’t answer right now. <a href="#" data-a="ai-panel">Try in the Shortlist panel</a>.';
-      render(state, lastJob);
+    if (a === 'ai') runAI();
+    if (a === 'fill') runAutofill();
+    if (a === 'act') {
+      const act = form?.actions?.find(x => x.key === el.dataset.key);
+      if (!act) return;
+      formNote = `Clicked “${esc(act.label)}” on the page.`;
+      renderForm();
+      await send({ type: 'page-action', key: act.key, frameId: act.frameId });
+      setTimeout(() => { formSig = ''; scheduleForm(1200); }, 300);
     }
   });
+
+  /* ---------- AI insights (streamed from the extension's offscreen AI page) ---------- */
+  const setAI = html => {
+    aiHtml = html;
+    const box = root.querySelector('.ai-box');
+    if (box) box.innerHTML = html; else render(state, lastJob);
+  };
+  async function runAI() {
+    const h = lastHash;
+    setAI('<span class="spin"></span>Starting AI…');
+    const ok = await send({ type: 'ensure-offscreen' });
+    if (h !== lastHash) return;
+    if (!ok?.ok) return setAI(`AI couldn’t start (${esc(ok?.error || 'unknown error')}). <a href="#" data-a="ai-panel">Open insights in the Shortlist panel</a>.`);
+    setAI('<span class="spin"></span>Reading the job and your resume…');
+    let port;
+    try { port = chrome.runtime.connect({ name: 'shortlist-ai' }); } catch { alive = false; return; }
+    port.onMessage.addListener(m => {
+      if (h !== lastHash) { port.disconnect(); return; }
+      if (m.chunk) setAI(mdLite(m.chunk));
+      else if (m.done) { setAI(mdLite(m.text || '')); port.disconnect(); }
+      else if (m.error) {
+        port.disconnect();
+        if (m.error === 'downloadable' || m.error === 'downloading') setAI('Chrome’s built-in AI needs a one-time download. <a href="#" data-a="ai-panel">Enable it in Shortlist</a>.');
+        else if (m.error === 'noresume') setAI('Add your resume in Shortlist first. <a href="#" data-a="open">Open Shortlist</a>.');
+        else if (m.error === 'unsupported' || m.error === 'unavailable') setAI('Built-in AI isn’t available to the page card in this Chrome. <a href="#" data-a="ai-panel">Open insights in the Shortlist panel</a>.');
+        else setAI(`AI error: ${esc(m.message || m.error)}. <a href="#" data-a="ai-panel">Try in the Shortlist panel</a>.`);
+      }
+    });
+    port.onDisconnect.addListener(() => { if (/spin/.test(aiHtml) && h === lastHash) setAI('AI stopped unexpectedly. <a href="#" data-a="ai-panel">Try in the Shortlist panel</a>.'); });
+    port.postMessage({ type: 'insights', job: lastJob });
+  }
+
+  /* ---------- Application / sign-up form card (pages with a form but no job description) ---------- */
+  const ATS_HOST = /myworkdayjobs|workday|greenhouse|lever\.co|ashbyhq|icims|taleo|smartrecruiters|successfactors|jobvite|bamboohr|workable|recruitee|teamtailor|personio|jazzhr|applytojob|breezy|zohorecruit|naukri|indeed|linkedin|wellfound|instahyre|internshala|foundit|dice\.com|glassdoor/i;
+  const JOBISH_URL = /apply|application|career|jobs?\b|job[-_/]|position|opening|vacanc|candidate|requisition|recruit/i;
+  let form = null, formSig = '', formNote = '', formTimer = null, lastFormScan = 0;
+  const KIND_TEXT = { signup: 'Create-account form', signin: 'Sign-in form', application: 'Application form' };
+  function renderForm() {
+    if (!form || lastHash || !settings.widget || dismissed.has(location.href)) return;
+    mount();
+    const prim = form.actions.filter(x => x.primary).slice(0, 2);
+    const sec = form.actions.filter(x => !x.primary && x.label.length < 22).slice(0, 1);
+    const fillLabel = form.kind === 'signin' ? 'Fill login' : 'Autofill';
+    const sub = form.kind === 'signup' ? (form.account ? 'Your saved login for this site will be used.' : 'Fills your name and email, plus a strong password saved in Shortlist.')
+      : form.kind === 'signin' ? (form.account ? `Saved login: ${esc(form.account.email || 'available')}` : 'No saved login for this site yet.')
+      : `${form.empty} empty field${form.empty === 1 ? '' : 's'}${form.files ? ' · resume upload' : ''}`;
+    W.innerHTML = `<div class="card">
+      <div class="head"><span class="mark">${ICON.mark}</span><span class="brand">Shortlist</span><button class="ib" data-a="x" title="Hide on this page">${ICON.x}</button></div>
+      <div class="body">
+        <div class="job">${KIND_TEXT[form.kind]}</div>
+        <div class="sub">${esc(form.host)}</div>
+        <p class="muted" style="margin-top:8px;font-size:12px">${sub}</p>
+        <div class="btns"><button class="btn" data-a="fill">${ICON.bolt} ${fillLabel}</button>${prim[0] ? `<button class="btn ghost" data-a="act" data-key="${prim[0].key}" title="Clicks this button on the page">${esc(prim[0].label)}</button>` : `<button class="btn ghost" data-a="open">Open Shortlist</button>`}</div>
+        ${prim[1] || sec[0] ? `<div class="btns" style="margin-top:6px">${[prim[1], sec[0]].filter(Boolean).map(x => `<button class="btn ghost" data-a="act" data-key="${x.key}">${esc(x.label)}</button>`).join('')}</div>` : ''}
+        ${formNote ? `<div class="note">${formNote}</div>` : ''}
+      </div></div>`;
+  }
+  async function runAutofill() {
+    formNote = '<span class="spin"></span>Filling…'; renderForm();
+    const r = await send({ type: 'autofill' });
+    if (!r || r.error) { formNote = esc(r?.error || 'Couldn’t fill this page.'); return renderForm(); }
+    const bits = [];
+    if (r.filled) bits.push(`${r.filled} field${r.filled === 1 ? '' : 's'} filled`);
+    if (r.passwordFilled) bits.push(r.generated ? 'strong password created & saved' : 'saved password filled');
+    if (r.attached) bits.push('resume attached');
+    formNote = (bits.length ? bits.join(' · ') : 'Nothing to fill — fields already have values') + '.';
+    if (r.noEmail) formNote += ' Add your email in Shortlist → Profile.';
+    if (r.terms) formNote += ' <b>Tick the terms checkbox yourself.</b>';
+    const prim = form?.actions?.find(x => x.primary);
+    if (prim && (r.filled || r.passwordFilled)) formNote += ` Then press “${esc(prim.label)}”.`;
+    renderForm();
+  }
+  async function runForm() {
+    if (!alive || lastHash || !settings.widget) return;
+    const inputs = document.querySelectorAll('input:not([type=hidden]), textarea, select').length;
+    const hasKey = document.querySelector('input[type=email], input[type=password], input[type=file], [data-automation-id*="email" i], [data-automation-id*="password" i]');
+    if (!hasKey && inputs < 3) { if (form) { form = null; hide(); } return; }
+    const jobContext = ATS_HOST.test(location.hostname) || JOBISH_URL.test(location.pathname + location.search);
+    if (!jobContext && !document.querySelector('input[type=file]')) return; // ordinary sites: never scan
+    if (Date.now() - lastFormScan < 2500) return scheduleForm(2600);
+    lastFormScan = Date.now();
+    const r = await send({ type: 'form-scan' });
+    if (!r || r.kind === 'none' || lastHash) { if (form && !lastHash) { form = null; hide(); } return; }
+    // Only show on job-related pages (avoid every login page on the web), or when a resume upload is present.
+    if (!jobContext && !(r.kind === 'application' && r.files)) return;
+    const sig = r.kind + '|' + r.actions.map(x => x.label).join(',') + '|' + r.empty;
+    if (sig === formSig) return;
+    formSig = sig; form = r;
+    renderForm();
+  }
+  const scheduleForm = ms => { clearTimeout(formTimer); formTimer = setTimeout(runForm, ms); };
 
   /* ---------- detection loop ---------- */
   let lastJob = null, aiHtml = '';
@@ -185,18 +279,18 @@
     if (location.href !== lastUrl) { lastUrl = location.href; lastHash = ''; settleUntil = Date.now() + 15000; }
     let job;
     try { job = __shortlistExtract(); } catch { return; }
-    if (!job?.ok || !job.confident) { if (lastHash) { lastHash = ''; hide(); send({ type: 'no-job' }); } return; }
+    if (!job?.ok || !job.confident) { if (lastHash) { lastHash = ''; hide(); send({ type: 'no-job' }); } scheduleForm(400); return; }
     const h = hash(job.title + '|' + job.description.slice(0, 3000));
     if (h === lastHash) return;
-    lastHash = h; lastJob = job; aiHtml = '';
+    lastHash = h; lastJob = job; aiHtml = ''; form = null; formSig = '';
     const r = await send({ type: 'match', job });
     if (r && h === lastHash) render(r, job);
   }
   const schedule = ms => { clearTimeout(timer); timer = setTimeout(run, ms); };
 
   chrome.storage.local.get('settings', ({ settings: s }) => { settings = { ...settings, ...(s || {}) }; schedule(700); });
-  setInterval(() => { if (alive && location.href !== lastUrl) schedule(500); }, 700);
-  new MutationObserver(() => { if (Date.now() < settleUntil) schedule(900); }).observe(document.documentElement, { childList: true, subtree: true });
+  setInterval(() => { if (alive && location.href !== lastUrl) { formSig = ''; formNote = ''; schedule(500); } }, 700);
+  new MutationObserver(() => { if (Date.now() < settleUntil) schedule(900); else if (form || !lastHash) scheduleForm(1500); }).observe(document.documentElement, { childList: true, subtree: true });
   // A job detected inside an iframe of this page.
   chrome.runtime.onMessage.addListener(msg => {
     if (msg?.type !== 'render' || !alive || lastHash) return;
