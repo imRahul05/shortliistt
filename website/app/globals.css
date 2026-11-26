@@ -60,9 +60,19 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 .iso-world {
   position: absolute; left: 50%; top: 55%; width: 0; height: 0;
   transform-style: preserve-3d;
-  transform: scale(var(--iso-scale, 1)) rotateX(calc(58deg + var(--tx, 0deg))) rotateZ(calc(-45deg + var(--tz, 0deg)));
-  transition: transform .5s cubic-bezier(.2,.7,.2,1);
+  transform: scale(var(--iso-scale, 1)) rotateX(var(--rx, 58deg)) rotateZ(var(--rz, -45deg));
 }
+.iso-scene { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.iso-scene.is-dragging { cursor: grabbing; }
+.iso-scene.is-resetting .iso-world { transition: transform .7s cubic-bezier(.2,.7,.2,1); }
+.iso-hint {
+  position: absolute; left: 50%; bottom: 4%; translate: -50% 0; display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 99px; border: 1px solid var(--color-line); background: rgb(13 17 27 / .8); backdrop-filter: blur(6px);
+  font-family: var(--font-mono); font-size: 11px; color: var(--color-dim); white-space: nowrap; pointer-events: none;
+  transition: opacity .4s, translate .4s; animation: rise .8s cubic-bezier(.2,.7,.2,1) 1.6s both;
+}
+.iso-hint svg { width: 12px; height: 12px; }
+.iso-hint.is-hidden { opacity: 0; translate: -50% 6px; }
 .iso-bob { transform-style: preserve-3d; animation: iso-bob 6s ease-in-out infinite; }
 @keyframes iso-bob { 50% { transform: translateZ(10px); } }
 
