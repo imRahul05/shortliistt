@@ -499,7 +499,7 @@ function renderResume() {
   const cy = candidateYears(r.text, r.sections, S.profile.yearsExperience, r.detected?.aiYears);
   $('#yearsTotal').textContent = S.profile.yearsExperience ? `${S.profile.yearsExperience} yrs (override)` : total ? fmtMonths(total) : cy.years ? `${cy.years} yrs · ${cy.source}` : '';
   $('#roles').innerHTML = ranges.length ? ranges.slice(0, 8).map(x => `<li><span class="rl" title="${esc(x.label)}">${esc(cleanLabel(x.label) || 'Role')}</span><span class="rd">${fmtMonth(x.start)} – ${x.end >= nowM ? 'Present' : fmtMonth(x.end - 1)} · ${fmtMonths(x.end - x.start)}</span></li>`).join('')
-    : `<li class="empty-roles">No date ranges found in your work history.${cy.source === 'local AI' ? ` AI estimates ${cy.years} years.` : ' Set your years below.'}</li>`;
+    : `<li class="empty-roles">No date ranges found in your work history.${cy.source === 'AI' ? ` AI estimates ${cy.years} years.` : ' Set your years below.'}</li>`;
   $('#yearsOverride').placeholder = total ? `${Math.round(total / 1.2) / 10} detected` : 'e.g. 3';
   $('#yearsOverride').value = S.profile.yearsExperience ?? '';
   renderSkills();
