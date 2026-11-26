@@ -1,5 +1,5 @@
 'use client';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /*
   Isometric "exploded view" of how Shortlist works, in pure CSS 3D (no WebGL, no libraries):
@@ -22,20 +22,72 @@ function Slab({ className, z, children }: { className: string; z: number; childr
   );
 }
 
+const BASE = { rx: 58, rz: -45 };
+const clampX = (v: number) => Math.max(0, Math.min(72, v)); // 0° = straight top-down, 72° = low side view
+
 export default function IsoHero() {
-  const ref = useRef<HTMLDivElement>(null);
-  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType !== 'mouse' || !ref.current) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    ref.current.style.setProperty('--tz', `${((e.clientX - r.left) / r.width - 0.5) * 10}deg`);
-    ref.current.style.setProperty('--tx', `${((e.clientY - r.top) / r.height - 0.5) * -6}deg`);
+  const scene = useRef<HTMLDivElement>(null);
+  const world = useRef<HTMLDivElement>(null);
+  const st = useRef({ rx: BASE.rx, rz: BASE.rz, vx: 0, vz: 0, drag: false, lx: 0, ly: 0, lt: 0, raf: 0, id: -1 });
+  const [hint, setHint] = useState(true);
+
+  const apply = () => {
+    const s = st.current;
+    world.current?.style.setProperty('--rx', `${s.rx}deg`);
+    world.current?.style.setProperty('--rz', `${s.rz}deg`);
   };
-  const reset = () => { ref.current?.style.setProperty('--tz', '0deg'); ref.current?.style.setProperty('--tx', '0deg'); };
+  // Momentum after release, decaying smoothly.
+  const glide = () => {
+    const s = st.current;
+    s.vx *= 0.93; s.vz *= 0.93;
+    s.rz += s.vz; s.rx = clampX(s.rx + s.vx);
+    apply();
+    if (Math.abs(s.vx) + Math.abs(s.vz) > 0.02) s.raf = requestAnimationFrame(glide);
+  };
+
+  const onDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const s = st.current;
+    cancelAnimationFrame(s.raf);
+    Object.assign(s, { drag: true, lx: e.clientX, ly: e.clientY, lt: performance.now(), vx: 0, vz: 0, id: e.pointerId });
+    e.currentTarget.setPointerCapture(e.pointerId);
+    scene.current?.classList.add('is-dragging');
+    setHint(false);
+  };
+  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const s = st.current;
+    if (!s.drag || e.pointerId !== s.id) return;
+    const dx = e.clientX - s.lx, dy = e.clientY - s.ly, now = performance.now(), dt = Math.max(1, now - s.lt);
+    const dz = dx * 0.45, dxr = -dy * 0.3;
+    s.rz += dz; s.rx = clampX(s.rx + dxr);
+    s.vz = (dz / dt) * 16; s.vx = (dxr / dt) * 16; // degrees per frame
+    Object.assign(s, { lx: e.clientX, ly: e.clientY, lt: now });
+    apply();
+  };
+  const onUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const s = st.current;
+    if (!s.drag || e.pointerId !== s.id) return;
+    s.drag = false;
+    scene.current?.classList.remove('is-dragging');
+    if (performance.now() - s.lt > 80) { s.vx = 0; s.vz = 0; } // released without a flick
+    s.raf = requestAnimationFrame(glide);
+  };
+  const resetView = () => {
+    const s = st.current;
+    cancelAnimationFrame(s.raf);
+    // Take the short way back around.
+    s.rz = BASE.rz + ((((s.rz - BASE.rz) % 360) + 540) % 360) - 180;
+    apply();
+    requestAnimationFrame(() => { s.rx = BASE.rx; s.rz = BASE.rz; s.vx = s.vz = 0; scene.current?.classList.add('is-resetting'); apply(); setTimeout(() => scene.current?.classList.remove('is-resetting'), 700); });
+  };
+  useEffect(() => () => cancelAnimationFrame(st.current.raf), []);
 
   return (
-    <div className="iso-scene relative mx-auto aspect-[1/1] w-full max-w-[560px]" onPointerMove={onMove} onPointerLeave={reset} aria-hidden>
+    <div ref={scene} className="iso-scene relative mx-auto aspect-[1/1] w-full max-w-[560px]"
+      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onDoubleClick={resetView}
+      role="img" aria-label="Shortlist reads a job posting, matches it against your resume and shows a match score. Drag to rotate.">
       <div className="iso-glow" />
-      <div ref={ref} className="iso-world">
+      <div ref={world} className="iso-world">
         <div className="iso-bob">
           <div className="iso-floor" />
           <div className="iso-shadow" />
@@ -76,6 +128,10 @@ export default function IsoHero() {
             </div>
           </Slab>
         </div>
+      </div>
+      <div className={`iso-hint ${hint ? '' : 'is-hidden'}`}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 4v5h-5" /></svg>
+        Drag to rotate · double-click to reset
       </div>
     </div>
   );
