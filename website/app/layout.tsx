@@ -1,0 +1,21 @@
+import type { Metadata } from 'next';
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
+import './globals.css';
+
+const site = process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:3000';
+
+export const metadata: Metadata = {
+  metadataBase: new URL(site),
+  title: 'Shortlist — Know your fit before you apply',
+  description: 'Free Chrome extension that scores your resume against any job page, tailors it in one click and autofills applications. 100% local. No API keys.',
+  openGraph: { title: 'Shortlist', description: 'Know your fit before you apply. Free, local, no API keys.', images: ['/icon.png'] },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+      <body>{children}</body>
+    </html>
+  );
+}

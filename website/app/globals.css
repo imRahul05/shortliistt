@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #07090f;
+  --color-ink-2: #0d111b;
+  --color-line: #1b2233;
+  --color-fg: #e9ecf5;
+  --color-dim: #8b93a7;
+  --color-blue: #4f7cff;
+  --color-mint: #3ee6a8;
+  --color-amber: #ffb547;
+  --color-coral: #ff6b6b;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+html { background: var(--color-ink); color: var(--color-fg); scroll-behavior: smooth; }
+body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+::selection { background: var(--color-blue); color: white; }
+
+.grid-bg {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / .04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / .04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black, transparent);
+}
+
+.scene { perspective: 1400px; }
+.stage { transform-style: preserve-3d; transition: transform .25s cubic-bezier(.2,.7,.2,1); }
+.stage > * { transform-style: preserve-3d; }
+
+@keyframes ring { from { stroke-dashoffset: 289 } }
+.ring { animation: ring 1.6s cubic-bezier(.2,.7,.2,1) .3s both; }
+
+@keyframes float { 50% { translate: 0 -10px } }
+.float { animation: float 6s ease-in-out infinite; }
+.float-slow { animation: float 8s ease-in-out infinite; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(14px) } }
+.rise { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ring, .float, .float-slow, .rise { animation: none; }
+  .stage { transition: none; }
+}

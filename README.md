@@ -47,6 +47,9 @@ lib/pdfjs/               Mozilla pdf.js 4.10 (Apache-2.0), bundled locally
 test/                    `node test/run.mjs` — matcher smoke test
 ```
 
+## Website
+The landing page lives in `website/` (Next.js + Tailwind + Geist). Deploy on Vercel: **New Project → import this repo → set Root Directory to `website`** → Deploy. Local dev: `cd website && npm install && npm run dev`.
+
 ## Tips
 * Wrong or empty job text? Select the description on the page and click **Analyze**, or use **Edit job text**.
 * Click a red (missing) skill in the Match tab if you really have it. It's added to your profile skills and the score updates.
