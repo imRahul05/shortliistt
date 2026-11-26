@@ -26,21 +26,112 @@ body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
   mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black, transparent);
 }
 
-.scene { perspective: 1400px; }
-.stage { transform-style: preserve-3d; transition: transform .25s cubic-bezier(.2,.7,.2,1); }
-.stage > * { transform-style: preserve-3d; }
-
-@keyframes ring { from { stroke-dashoffset: 289 } }
-.ring { animation: ring 1.6s cubic-bezier(.2,.7,.2,1) .3s both; }
-
-@keyframes float { 50% { translate: 0 -10px } }
-.float { animation: float 6s ease-in-out infinite; }
-.float-slow { animation: float 8s ease-in-out infinite; }
-
 @keyframes rise { from { opacity: 0; transform: translateY(14px) } }
 .rise { animation: rise .8s cubic-bezier(.2,.7,.2,1) both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ring, .float, .float-slow, .rise { animation: none; }
-  .stage { transition: none; }
+  .rise { animation: none; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero headline accents                                                */
+/* ------------------------------------------------------------------ */
+.hl-mark {
+  background-image: linear-gradient(transparent, transparent), linear-gradient(rgb(62 230 168 / .55), rgb(62 230 168 / .55));
+  background-repeat: no-repeat;
+  background-position: 0 90%;
+  background-size: 0% 22%;
+  padding: 0 .06em; margin: 0 -.06em;
+  animation: hl-mark .9s cubic-bezier(.6,.1,.2,1) .45s forwards;
+}
+@keyframes hl-mark { to { background-size: 100% 22%; } }
+.hl-under { position: relative; white-space: nowrap; color: var(--color-fg); }
+.hl-under svg { position: absolute; left: -2%; bottom: -.16em; width: 104%; height: .32em; overflow: visible; }
+.hl-under path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: hl-draw 1s cubic-bezier(.6,.1,.2,1) 1.15s forwards; }
+@keyframes hl-draw { to { stroke-dashoffset: 0; } }
+
+/* ------------------------------------------------------------------ */
+/* Isometric hero (pure CSS 3D, orthographic)                           */
+/* ------------------------------------------------------------------ */
+@property --pct { syntax: '<integer>'; inherits: false; initial-value: 0; }
+
+.iso-scene { --cyc: 7s; --gap: 124px; }
+.iso-glow { position: absolute; inset: 18% 10% 8%; border-radius: 50%; background: radial-gradient(closest-side, rgb(62 230 168 / .16), rgb(79 124 255 / .10) 55%, transparent); filter: blur(30px); }
+.iso-world {
+  position: absolute; left: 50%; top: 55%; width: 0; height: 0;
+  transform-style: preserve-3d;
+  transform: scale(var(--iso-scale, 1)) rotateX(calc(58deg + var(--tx, 0deg))) rotateZ(calc(-45deg + var(--tz, 0deg)));
+  transition: transform .5s cubic-bezier(.2,.7,.2,1);
+}
+.iso-bob { transform-style: preserve-3d; animation: iso-bob 6s ease-in-out infinite; }
+@keyframes iso-bob { 50% { transform: translateZ(10px); } }
+
+.iso-floor {
+  position: absolute; width: 460px; height: 460px; left: -230px; top: -230px; transform: translateZ(-46px);
+  background-image: linear-gradient(rgb(255 255 255 / .07) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / .07) 1px, transparent 1px);
+  background-size: 23px 23px;
+  mask-image: radial-gradient(closest-side, black 30%, transparent);
+}
+.iso-shadow { position: absolute; width: 300px; height: 230px; left: -150px; top: -115px; transform: translateZ(-45px); background: rgb(0 0 0 / .6); filter: blur(28px); border-radius: 30px; }
+
+.iso-slab { position: absolute; transform-style: preserve-3d; transform: translateZ(var(--z)); }
+.iso-face {
+  position: absolute; inset: 0; border-radius: 14px; padding: 16px 18px; overflow: hidden;
+  background: linear-gradient(150deg, rgb(255 255 255 / .09), rgb(255 255 255 / .02)), #0f1524;
+  border: 1px solid rgb(255 255 255 / .12);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .08);
+  font-family: var(--font-sans);
+}
+.iso-side { position: absolute; background: #0a0f1a; border: 1px solid rgb(255 255 255 / .06); }
+.iso-side-b { left: 6px; right: 6px; top: 100%; height: 12px; transform-origin: top; transform: rotateX(-90deg); background: linear-gradient(#141c2e, #0a0f1a); }
+.iso-side-r { top: 6px; bottom: 6px; left: 100%; width: 12px; transform-origin: left; transform: rotateY(90deg); background: linear-gradient(90deg, #111829, #080c15); }
+
+.iso-job   { width: 290px; height: 210px; left: -145px; top: -105px; }
+.iso-res   { width: 250px; height: 170px; left: -125px; top: -85px; }
+.iso-match { width: 210px; height: 120px; left: -105px; top: -60px; }
+.iso-job .iso-face   { border-color: rgb(79 124 255 / .35); }
+.iso-res .iso-face   { background: linear-gradient(150deg, rgb(62 230 168 / .10), rgb(255 255 255 / .02)), rgb(15 21 36 / .92); border-color: rgb(62 230 168 / .30); }
+.iso-match .iso-face { display: flex; align-items: center; border-color: rgb(62 230 168 / .55); box-shadow: 0 0 40px -6px rgb(62 230 168 / .45), inset 0 1px 0 rgb(255 255 255 / .1); }
+
+.iso-label { display: flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--color-dim); margin-bottom: 12px; }
+.iso-dot { width: 6px; height: 6px; border-radius: 99px; }
+.iso-line { height: 7px; border-radius: 99px; background: rgb(255 255 255 / .09); margin-bottom: 8px; }
+.iso-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.iso-chip { font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; background: rgb(255 255 255 / .06); color: rgb(233 236 245 / .55); border: 1px solid transparent; animation-duration: var(--cyc); animation-iteration-count: infinite; animation-timing-function: ease-out; }
+
+/* 1) scan beam + job chips */
+.iso-scan { position: absolute; top: 0; bottom: 0; width: 70px; left: -80px; background: linear-gradient(90deg, transparent, rgb(79 124 255 / .35), rgb(160 190 255 / .7), transparent); filter: blur(1px); animation: iso-scan var(--cyc) cubic-bezier(.5,0,.3,1) infinite; }
+@keyframes iso-scan { 0%, 4% { transform: translateX(0); opacity: 0; } 6% { opacity: 1; } 30% { transform: translateX(400px); opacity: 1; } 33%, 100% { transform: translateX(400px); opacity: 0; } }
+.iso-chip-job { animation-name: iso-chip-job; }
+@keyframes iso-chip-job { 0%, 6% { background: rgb(255 255 255 / .06); color: rgb(233 236 245 / .55); border-color: transparent; } 10%, 86% { background: rgb(79 124 255 / .16); color: #b9ccff; border-color: rgb(79 124 255 / .45); } 94%, 100% { background: rgb(255 255 255 / .06); color: rgb(233 236 245 / .55); border-color: transparent; } }
+
+/* 2) beams + particles rising from job to resume */
+.iso-beam { position: absolute; left: var(--x); top: var(--y); width: 3px; height: var(--gap); transform-origin: top center; transform: translateZ(0) rotateX(90deg); background: linear-gradient(rgb(62 230 168 / .05), rgb(62 230 168 / .8)); box-shadow: 0 0 10px rgb(62 230 168 / .5); opacity: 0; animation: iso-beam var(--cyc) ease-in-out infinite; }
+@keyframes iso-beam { 0%, 26% { opacity: 0; } 32%, 52% { opacity: 1; } 60%, 100% { opacity: 0; } }
+.iso-beam i { position: absolute; left: -3.5px; top: 0; width: 10px; height: 10px; border-radius: 99px; background: #9ff5d3; box-shadow: 0 0 12px 3px rgb(62 230 168 / .8); opacity: 0; animation: iso-dot var(--cyc) cubic-bezier(.5,0,.5,1) infinite; }
+@keyframes iso-dot { 0%, 30% { transform: translateY(0); opacity: 0; } 32% { opacity: 1; } 44% { transform: translateY(var(--gap)); opacity: 1; } 46%, 100% { transform: translateY(var(--gap)); opacity: 0; } }
+
+/* resume chips resolve */
+.iso-chip-ok { animation-name: iso-chip-ok; }
+.iso-chip-miss { animation-name: iso-chip-miss; }
+@keyframes iso-chip-ok { 0%, 6% { background: rgb(255 255 255 / .06); color: rgb(233 236 245 / .45); border-color: transparent; } 9%, 52% { background: rgb(62 230 168 / .16); color: #7ff2c6; border-color: rgb(62 230 168 / .45); } 58%, 100% { background: rgb(255 255 255 / .06); color: rgb(233 236 245 / .45); border-color: transparent; } }
+@keyframes iso-chip-miss { 0%, 6% { background: rgb(255 255 255 / .06); color: rgb(233 236 245 / .45); border-color: transparent; } 9%, 52% { background: rgb(255 107 107 / .14); color: #ff9c9c; border-color: rgb(255 107 107 / .4); } 58%, 100% { background: rgb(255 255 255 / .06); color: rgb(233 236 245 / .45); border-color: transparent; } }
+
+/* 3) score */
+.iso-ring { stroke-dashoffset: 100; animation: iso-ring var(--cyc) cubic-bezier(.3,.7,.2,1) infinite; }
+@keyframes iso-ring { 0%, 50% { stroke-dashoffset: 100; } 66%, 90% { stroke-dashoffset: 13; } 97%, 100% { stroke-dashoffset: 100; } }
+.iso-num { counter-reset: p var(--pct); animation: iso-count var(--cyc) cubic-bezier(.3,.7,.2,1) infinite; }
+.iso-num::before { content: counter(p); }
+@keyframes iso-count { 0%, 50% { --pct: 0; } 66%, 90% { --pct: 87; } 97%, 100% { --pct: 0; } }
+.iso-verdict { opacity: 0; animation: iso-verdict var(--cyc) ease infinite; }
+@keyframes iso-verdict { 0%, 64% { opacity: 0; transform: translateY(4px); } 68%, 90% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
+
+@media (min-width: 1024px) { .iso-scene { --iso-scale: 1.12; } }
+@media (max-width: 520px) { .iso-scene { --iso-scale: .72; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hl-mark { animation: none; background-size: 100% 22%; }
+  .hl-under path { animation: none; stroke-dashoffset: 0; }
+  .iso-bob, .iso-scan, .iso-beam, .iso-beam i { animation: none; }
+  .iso-chip, .iso-ring, .iso-num, .iso-verdict { animation-play-state: paused; animation-delay: calc(var(--cyc) * -0.75) !important; }
 }

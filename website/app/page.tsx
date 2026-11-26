@@ -1,4 +1,4 @@
-import Hero3D from '@/components/Hero3D';
+import IsoHero from '@/components/IsoHero';
 import { ChromeLogo, SITES, SiteLogo } from '@/components/Brand';
 
 const REPO = 'https://github.com/imRahul05/shortliistt';
@@ -68,8 +68,9 @@ export default async function Home() {
             <span className="size-1.5 rounded-full bg-mint" />Free · No API keys
           </span>
           <h1 className="mt-6 text-5xl font-semibold tracking-[-0.04em] text-balance sm:text-6xl lg:text-7xl">
-            Know your fit<br />
-            <span className="text-dim">before you apply.</span>
+            Know your <span className="hl-mark">fit</span><br />
+            <span className="text-dim">before you </span>
+            <span className="hl-under">apply.<svg viewBox="0 0 100 10" preserveAspectRatio="none" aria-hidden><path d="M1 7 C 22 2.5, 45 2, 62 4.5 S 88 8.5, 99 3.5" fill="none" stroke="#3ee6a8" strokeWidth="3" strokeLinecap="round" pathLength={1} vectorEffect="non-scaling-stroke" /></svg></span>
           </h1>
           <p className="mt-6 max-w-md text-lg leading-relaxed text-dim">
             Shortlist reads the job page, scores your resume against it and tailors it in one click — entirely inside Chrome.
@@ -80,7 +81,7 @@ export default async function Home() {
           </div>
           <p className="mt-4 font-mono text-xs text-dim">{version ? `${version} · ` : ''}Free · Works in Chrome, Edge &amp; Brave</p>
         </div>
-        <Hero3D />
+        <IsoHero />
       </section>
 
       {/* Sites */}
