@@ -65,7 +65,7 @@ export default async function Home() {
       <section className="relative z-10 mx-auto grid max-w-6xl items-center gap-12 px-6 pt-10 pb-24 lg:grid-cols-[1fr_1.05fr] lg:pt-16">
         <div className="rise">
           <span className="inline-flex items-center gap-2 rounded-full border border-line bg-ink-2 px-3 py-1 font-mono text-xs text-dim">
-            <span className="size-1.5 rounded-full bg-mint" />Free · Local · No API keys
+            <span className="size-1.5 rounded-full bg-mint" />Free · No API keys
           </span>
           <h1 className="mt-6 text-5xl font-semibold tracking-[-0.04em] text-balance sm:text-6xl lg:text-7xl">
             Know your fit<br />
