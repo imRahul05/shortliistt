@@ -1,5 +1,5 @@
 // Service worker: scores jobs detected by the content script, sets the toolbar badge, opens the side panel.
-import { analyzeJob, matchJob, effectiveProfile } from './lib/matcher.js';
+import { analyzeJob, matchJob, effectiveProfile, isOwnContent } from './lib/matcher.js';
 import { scanForm, autofillPage, clickAction, generatePassword } from './lib/autofill.js';
 
 const setup = () => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
@@ -108,6 +108,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg?.type === 'match' && msg.job) {
     (async () => {
       const { resume, profile = {} } = await data();
+      // Never score the user's own resume, portfolio or profile pages as a job.
+      const own = isOwnContent(msg.job, resume?.text, profile);
+      if (own) { if (tabId != null) await setBadge(tabId, null); return reply({ state: 'not-job', reason: own }); }
       // Let an open side panel pick up the job instantly (SPA navigations like LinkedIn).
       chrome.runtime.sendMessage({ type: 'job-detected', tabId, job: msg.job }).catch(() => {});
       if (!resume?.text) {
