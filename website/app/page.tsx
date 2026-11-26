@@ -159,7 +159,10 @@ export default async function Home() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-8 text-sm text-dim">
           <span className="flex items-center gap-2"><img src="/icon.png" alt="" className="size-5" />Shortlist — free &amp; open source</span>
-          <a href={REPO} className="hover:text-fg">github.com/imRahul05/shortliistt</a>
+          <div className="flex items-center gap-6">
+            <a href="/privacy" className="hover:text-fg">Privacy</a>
+            <a href={REPO} className="hover:text-fg">github.com/imRahul05/shortliistt</a>
+          </div>
         </div>
       </footer>
     </main>

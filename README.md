@@ -30,7 +30,9 @@ Free, private job-application helper. No sign-in, no API keys, no servers. Every
 * Prompts tell the model never to invent employers, dates, metrics or skills. AI bullet rewrites are shown as a diff you accept or reject line by line.
 
 ## Privacy
-Your resume, profile, history and tailored resumes are stored in `chrome.storage.local` on your machine. **Profile → Delete all my data** wipes them. The extension makes no network requests.
+Full policy: **[shortliistt.vercel.app/privacy](https://shortliistt.vercel.app/privacy)**.
+
+In short: your resume, profile, history, drafts and any site logins Shortlist creates are stored in `chrome.storage.local` on your device. There is no Shortlist server, the extension makes no network requests of its own, and AI runs on-device via Chrome's built-in Gemini Nano (which Chrome downloads separately). Data only leaves your browser when you submit an application to a job site. **Profile → Delete all my data** (or uninstalling) removes everything.
 
 ## Architecture
 
