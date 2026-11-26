@@ -32,26 +32,44 @@ Free, private job-application helper. No sign-in, no API keys, no servers. Every
 ## Privacy
 Your resume, profile, history and tailored resumes are stored in `chrome.storage.local` on your machine. **Profile → Delete all my data** wipes them. The extension makes no network requests.
 
+## Architecture
+
+Everything runs inside the browser. There is no backend: the only network traffic is the job page itself and, optionally, Chrome's one-time download of its built-in model.
+
+Diagrams live in [`docs/diagrams`](docs/diagrams/README.md):
+
+- [Architecture](docs/diagrams/architecture.md)
+- [What happens when you open a job](docs/diagrams/job-flow.md)
+- [How the match score is calculated](docs/diagrams/scoring.md)
+- [Release pipeline](docs/diagrams/release-pipeline.md)
+
 ## Project layout
 ```
-manifest.json            MV3 manifest (side panel, scripting, storage)
-background.js            opens side panel, scores job tabs for the badge
-content/extract.js       DOM → job {title, company, description} (injected on demand)
+manifest.json            MV3 manifest (side panel, scripting, storage, offscreen)
+background.js            scores detected jobs, toolbar badge, opens side panel, routes AI to offscreen
+content/extract.js       DOM → job {title, company, description}
+content/widget.js        floating score card on job pages (runs in all frames)
+offscreen/               hidden page that runs Chrome's built-in AI for the card
 lib/skills.js            skill taxonomy, aliases, families, implications
-lib/matcher.js           deterministic scoring + suggestions
-lib/resume-parser.js     PDF (pdf.js) / DOCX (native unzip) / TXT → text
-lib/resume-model.js      text ↔ editable model, HTML render, tailoring helpers
-lib/docx.js              dependency-free DOCX writer
+lib/matcher.js           deterministic scoring, date parsing, suggestions
+lib/resume-parser.js     PDF (pdf.js) / DOCX → rich text with bold, italic and links
+lib/resume-model.js      rich text ↔ editable model, HTML render, tailoring helpers
+lib/docx.js              dependency-free DOCX writer (hyperlinks included)
+lib/letter.js            cover letter drafting from resume + job
 lib/ai.js                optional Chrome built-in AI (Gemini Nano)
 lib/autofill.js          form autofill (injected into all frames)
-sidepanel/               Match · Apply · Profile UI
-studio/                  full-page Resume Studio
+lib/fonts/               Geist, Geist Mono, CMU Serif (OFL)
 lib/pdfjs/               Mozilla pdf.js 4.10 (Apache-2.0), bundled locally
+sidepanel/               Match · Apply · Profile UI
+studio/                  Resume Studio + cover letter
+website/                 landing page (Next.js), deployed on Vercel
+docs/diagrams/           architecture, job flow, scoring and release diagrams (Mermaid)
 test/                    `node test/run.mjs` — matcher smoke test
+.github/workflows/       release.yml — versioned zip + GitHub Release
 ```
 
 ## Releases
-Every push to `main` that changes the extension runs `.github/workflows/release.yml`: it tests the matcher, sets the version to `<major>.<minor>.<build number>` (from `manifest.json`), zips the extension and publishes a GitHub Release. The link above always points to the newest one. Bump `major.minor` in `manifest.json` for bigger releases.
+Every push to `main` that changes extension files (anything outside `website/`, `docs/`, `test/`, `.github/` and `*.md`) runs `.github/workflows/release.yml`: it tests the matcher, sets the version to `<major>.<minor>.<build number>` (from `manifest.json`), zips the extension and publishes a GitHub Release. The link above always points to the newest one. Bump `major.minor` in `manifest.json` for bigger releases.
 
 ## Website
 The landing page lives in `website/` (Next.js + Tailwind + Geist). Deploy on Vercel: **New Project → import this repo → set Root Directory to `website`** → Deploy. Local dev: `cd website && npm install && npm run dev`.
