@@ -1,7 +1,7 @@
 import Hero3D from '@/components/Hero3D';
 
 const REPO = 'https://github.com/imRahul05/Shortliistt';
-const ZIP = `${REPO}/archive/refs/heads/main.zip`;
+const ZIP = `${REPO}/releases/latest/download/shortlist-extension.zip`;
 
 const features = [
   { tag: 'Match', title: 'A score you can trust', body: 'Reads the job straight from the page’s DOM, splits must-haves from nice-to-haves, and checks skills, years, degree and keywords. Deterministic — same input, same score.', accent: 'text-blue' },
@@ -112,7 +112,7 @@ export default function Home() {
           <h2 className="text-3xl font-semibold tracking-tight">Install in a minute.</h2>
           <div className="mt-8 grid gap-4 sm:grid-cols-4">
             {[
-              ['Download', <a key="a" href={ZIP} className="text-blue hover:underline">the ZIP</a>, ' and unzip it'],
+              ['Download', <a key="a" href={ZIP} className="text-blue hover:underline">the latest release</a>, ' and unzip it'],
               ['Open', <code key="c" className="font-mono text-fg">chrome://extensions</code>],
               ['Enable', 'Developer mode (top right)'],
               ['Click', 'Load unpacked → pick the folder'],

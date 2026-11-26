@@ -1,0 +1,60 @@
+name: Release extension
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'website/**'
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test matcher
+        run: node test/run.mjs > /dev/null
+
+      - name: Compute version
+        id: v
+        run: |
+          base=$(node -p "require('./manifest.json').version.split('.').slice(0,2).join('.')")
+          echo "version=${base}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Build zip
+        run: |
+          VERSION=${{ steps.v.outputs.version }}
+          mkdir -p dist/ext
+          cp -r manifest.json background.js content lib sidepanel studio icons README.md dist/ext/
+          node -e "
+            const fs=require('fs'), p='dist/ext/manifest.json';
+            const m=JSON.parse(fs.readFileSync(p)); m.version='$VERSION';
+            fs.writeFileSync(p, JSON.stringify(m, null, 2) + '\n');"
+          cd dist/ext && zip -qr ../shortlist-extension.zip . && cd ..
+          cp shortlist-extension.zip "shortlist-extension-v${VERSION}.zip"
+          ls -la
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=${{ steps.v.outputs.version }}
+          gh release create "v${VERSION}" \
+            dist/shortlist-extension.zip "dist/shortlist-extension-v${VERSION}.zip" \
+            --target "$GITHUB_SHA" \
+            --title "Shortlist v${VERSION}" \
+            --generate-notes \
+            --latest

@@ -3,7 +3,7 @@
 Free, private job-application helper. No sign-in, no API keys, no servers. Everything runs in your browser.
 
 ## Install (2 minutes)
-1. Unzip `shortlist.zip`.
+1. Download **[shortlist-extension.zip](https://github.com/imRahul05/Shortliistt/releases/latest/download/shortlist-extension.zip)** (latest release) and unzip it.
 2. Open `chrome://extensions`, turn on **Developer mode** (top right).
 3. Click **Load unpacked** and select the unzipped `shortlist` folder.
 4. Pin Shortlist and click the icon (or press **Alt+J**). The side panel opens.
@@ -46,6 +46,9 @@ studio/                  full-page Resume Studio
 lib/pdfjs/               Mozilla pdf.js 4.10 (Apache-2.0), bundled locally
 test/                    `node test/run.mjs` — matcher smoke test
 ```
+
+## Releases
+Every push to `main` that changes the extension runs `.github/workflows/release.yml`: it tests the matcher, sets the version to `<major>.<minor>.<build number>` (from `manifest.json`), zips the extension and publishes a GitHub Release. The link above always points to the newest one. Bump `major.minor` in `manifest.json` for bigger releases.
 
 ## Website
 The landing page lives in `website/` (Next.js + Tailwind + Geist). Deploy on Vercel: **New Project → import this repo → set Root Directory to `website`** → Deploy. Local dev: `cd website && npm install && npm run dev`.
