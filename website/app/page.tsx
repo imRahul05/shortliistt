@@ -1,4 +1,5 @@
 import IsoHero from '@/components/IsoHero';
+import ThemeToggle from '@/components/ThemeToggle';
 import { ChromeLogo, SITES, SiteLogo } from '@/components/Brand';
 
 const REPO = 'https://github.com/imRahul05/shortliistt';
@@ -16,7 +17,7 @@ async function latestVersion(): Promise<string | null> {
 function DownloadButton({ size = 'lg', label = 'Add to Chrome — free' }: { size?: 'sm' | 'lg'; label?: string }) {
   const cls = size === 'lg' ? 'gap-2.5 px-5 py-3 text-[15px]' : 'gap-2 px-3.5 py-1.5 text-sm';
   return (
-    <a href={ZIP} className={`group inline-flex items-center rounded-full bg-fg font-medium text-ink shadow-[0_1px_0_rgba(255,255,255,.4)_inset,0_8px_24px_-8px_rgba(255,255,255,.25)] transition hover:bg-white ${cls}`}>
+    <a href={ZIP} className={`group inline-flex items-center rounded-full bg-fg font-medium text-ink shadow-[0_1px_0_rgba(255,255,255,.4)_inset,0_8px_24px_-8px_rgba(255,255,255,.25)] transition hover:opacity-90 ${cls}`}>
       <ChromeLogo className={size === 'lg' ? 'size-5' : 'size-4'} />{label}
     </a>
   );
@@ -44,7 +45,7 @@ export default async function Home() {
   const version = await latestVersion();
   return (
     <main className="relative overflow-x-clip">
-      <div className="grid-bg pointer-events-none absolute inset-x-0 top-0 h-[900px]" />
+      <div className="hero-bg" aria-hidden><div className="aurora a1" /><div className="aurora a2" /><div className="aurora a3" /><div className="dots" /><div className="horizon" /><div className="grain" /><div className="fade" /></div>
 
       {/* Nav (sticky) */}
       <header className="sticky top-0 z-50 border-b border-line/70 bg-ink/70 backdrop-blur-xl supports-[backdrop-filter]:bg-ink/55">
@@ -56,6 +57,7 @@ export default async function Home() {
             <a href="#features" className="hidden hover:text-fg md:block">Features</a>
             <a href="#install" className="hidden hover:text-fg md:block">Install</a>
             <a href={REPO} aria-label="GitHub" className="hidden text-fg/70 hover:text-fg sm:block"><GitHubIcon /></a>
+            <ThemeToggle />
             <DownloadButton size="sm" label="Add to Chrome" />
           </div>
         </nav>
@@ -77,7 +79,7 @@ export default async function Home() {
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <DownloadButton />
-            <a href={REPO} className="flex items-center gap-2 rounded-full border border-line px-5 py-3 font-medium transition hover:border-white/30"><GitHubIcon />View source</a>
+            <a href={REPO} className="flex items-center gap-2 rounded-full border border-line px-5 py-3 font-medium transition hover:border-fg/30"><GitHubIcon />View source</a>
           </div>
           <p className="mt-4 font-mono text-xs text-dim">{version ? `${version} · ` : ''}Free · Works in Chrome, Edge &amp; Brave</p>
         </div>
@@ -85,7 +87,7 @@ export default async function Home() {
       </section>
 
       {/* Sites */}
-      <section className="relative z-10 border-y border-line bg-ink-2/50">
+      <section className="relative z-10 border-y border-line bg-ink-2">
         <div className="mx-auto max-w-6xl px-6 py-7">
           <p className="text-center font-mono text-xs tracking-widest text-dim uppercase">Works on every job site</p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-x-9 gap-y-5">
