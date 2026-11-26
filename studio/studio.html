@@ -3,21 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Shortlist Resume Studio</title>
+<title>Shortlist Studio</title>
 <link rel="stylesheet" href="../lib/ui.css">
 <link rel="stylesheet" href="studio.css">
 <style id="resumeCss"></style>
+<style id="pageCss"></style>
 </head>
 <body>
 <header class="bar">
-  <div class="brand"><img src="../icons/icon32.png" alt=""><b>Resume Studio</b></div>
+  <div class="brand"><span id="brandMark"></span><b>Studio</b></div>
+  <nav class="seg doc-seg"><button data-doc="resume" class="active">Resume</button><button data-doc="letter">Cover letter</button></nav>
   <div class="job-chip" id="jobChip">No job selected</div>
   <div class="score-live" id="scoreLive" title="Live match score for this job"></div>
   <div class="spacer"></div>
-  <select id="tpl" title="Template">
-    <option value="classic">Classic</option><option value="modern">Modern</option><option value="compact">Compact</option><option value="serif">Serif</option>
-  </select>
-  <label class="toggle small"><input type="checkbox" id="hl" checked> Highlight job skills</label>
+  <label class="ctl" title="Template"><span>Style</span><select id="tpl">
+    <option value="latex">LaTeX</option><option value="classic">Classic</option><option value="modern">Modern</option><option value="compact">Compact</option></select></label>
+  <label class="ctl" title="Page length"><span>Length</span><select id="pages"><option value="1">Fit to 1 page</option><option value="2">Up to 2 pages</option></select></label>
+  <label class="ctl" title="Paper size"><span>Paper</span><select id="psize"><option>Letter</option><option>A4</option></select></label>
+  <label class="toggle-inline"><input type="checkbox" id="hl"> Highlight job skills</label>
   <button class="btn small ghost" id="resetBtn" title="Discard edits and reload your uploaded resume">Reset</button>
   <button class="btn small" id="txtBtn">TXT</button>
   <button class="btn small" id="docxBtn">DOCX</button>
@@ -26,61 +29,91 @@
 
 <div class="layout">
   <aside class="left">
-    <div class="card tailor" id="tailor">
-      <h3 id="tailorTitle">Tailor for this job</h3>
-      <div id="noJobMsg" class="muted small" hidden>Open a job posting and click “Tailor my resume” in the Shortlist side panel to see live matching here. You can still edit and export your resume.</div>
-      <div id="tailorBody">
-        <div class="score-row">
-          <div><div class="big" id="scoreNow">–</div><div class="muted small">now</div></div>
-          <div class="arrow">←</div>
-          <div><div class="big muted" id="scoreBase">–</div><div class="muted small">original</div></div>
-          <div class="verdict" id="verdictNow"></div>
-        </div>
-
-        <div class="block">
-          <div class="label">Missing skills <span class="muted">— click the ones you truly have to add them to Skills</span></div>
-          <div class="chips" id="missChips"></div>
-        </div>
-        <div class="block">
-          <div class="label">Missing job keywords <span class="muted">— weave in where truthful</span></div>
-          <div class="chips" id="kwChips"></div>
-        </div>
-
-        <div class="block">
-          <div class="label">One-click tailoring <span class="muted">(rule-based, instant)</span></div>
-          <div class="row">
-            <button class="btn small" id="reorderBtn">Order skills by relevance</button>
-            <button class="btn small" id="bulletsBtn">Relevant bullets first</button>
-            <button class="btn small" id="sumBtn">Generate summary</button>
+    <!-- RESUME EDITOR -->
+    <div id="resumeSide">
+      <div class="card tailor" id="tailor">
+        <h3 id="tailorTitle">Tailor for this job</h3>
+        <div id="noJobMsg" class="muted small" hidden>Open a job and click “Tailor resume” in the Shortlist panel to see live matching here. You can still edit and export.</div>
+        <div id="tailorBody">
+          <div class="score-row">
+            <div><div class="big" id="scoreNow">–</div><div class="muted small">now</div></div>
+            <div class="muted">from</div>
+            <div><div class="big muted" id="scoreBase">–</div><div class="muted small">original</div></div>
+            <div class="verdict" id="verdictNow"></div>
+          </div>
+          <div class="block">
+            <div class="label">Missing skills <span class="muted">— click only the ones you really have</span></div>
+            <div class="chips" id="missChips"></div>
+          </div>
+          <div class="block">
+            <div class="label">Missing job keywords</div>
+            <div class="chips" id="kwChips"></div>
+          </div>
+          <div class="block">
+            <div class="label">Quick tailoring</div>
+            <div class="row">
+              <button class="btn small" id="reorderBtn">Order skills by relevance</button>
+              <button class="btn small" id="bulletsBtn">Relevant bullets first</button>
+              <button class="btn small" id="sumBtn">Write summary</button>
+            </div>
+          </div>
+          <div class="block" id="aiBlock">
+            <div class="label">AI rewrite <span class="muted" id="aiState"></span></div>
+            <div class="row">
+              <button class="btn small ai" id="aiSumBtn" data-icon-l="spark">Summary</button>
+              <select id="aiSec" class="sec-select"></select>
+              <button class="btn small ai" id="aiBulBtn" data-icon-l="spark">Rewrite bullets</button>
+            </div>
+            <div id="aiOut" class="ai-out" hidden></div>
           </div>
         </div>
+      </div>
 
-        <div class="block ai-block" id="aiBlock">
-          <div class="label">Local AI <span class="muted" id="aiState"></span></div>
-          <div class="row">
-            <button class="btn small" id="aiSumBtn">AI summary</button>
-            <select id="aiSec" class="sec-select"></select>
-            <button class="btn small" id="aiBulBtn">AI rewrite bullets</button>
-          </div>
-          <div id="aiOut" class="ai-out" hidden></div>
-        </div>
+      <div class="card editor">
+        <h3>Edit <span class="muted small" style="font-weight:400">· “- ” bullets · **bold** · *italic* · [text](link) · Tab = right column</span></h3>
+        <label class="field">Name<input type="text" id="fName"></label>
+        <label class="field">Headline<input type="text" id="fHeadline" placeholder="Senior Software Engineer · Java · AWS"></label>
+        <label class="field">Contact (separate with |)<input type="text" id="fContact"></label>
+        <div id="sections"></div>
+        <div class="row"><button class="btn small" id="addSec">+ Add section</button></div>
       </div>
     </div>
 
-    <div class="card editor">
-      <h3>Edit resume <span class="muted small" style="text-transform:none;letter-spacing:0">· lines starting with “- ” are bullets · **bold** supported</span></h3>
-      <label class="field">Name<input type="text" id="fName"></label>
-      <label class="field">Headline<input type="text" id="fHeadline" placeholder="e.g. Senior Software Engineer · Java · AWS"></label>
-      <label class="field">Contact (separate with |)<input type="text" id="fContact"></label>
-      <div id="sections"></div>
-      <div class="row"><button class="btn small" id="addSec">+ Add section</button></div>
+    <!-- LETTER EDITOR -->
+    <div id="letterSide" hidden>
+      <div class="card">
+        <h3>Cover letter <span class="muted small" id="letterFor" style="font-weight:400"></span></h3>
+        <div class="row" style="margin-bottom:10px">
+          <button class="btn ai" id="genLetterAI" data-icon-l="spark">Generate with AI</button>
+          <button class="btn" id="genLetter">Generate from resume</button>
+        </div>
+        <p class="muted small" id="letterHint" style="margin:0 0 10px"></p>
+        <div class="grid2">
+          <label class="field">Date<input type="text" id="lDate"></label>
+          <label class="field">To<textarea id="lTo" rows="2"></textarea></label>
+        </div>
+        <label class="field">Letter<textarea id="lBody" rows="22"></textarea></label>
+        <div class="row"><button class="btn small ghost" id="copyLetter" data-icon-l="copy">Copy text</button></div>
+      </div>
     </div>
   </aside>
 
   <main class="preview-wrap">
+    <div class="page-info" id="pageInfo"></div>
     <div class="page" id="page"></div>
   </main>
 </div>
+
+<dialog id="pagesDlg">
+  <form method="dialog">
+    <h3>Your resume is longer than one page</h3>
+    <p class="muted small" id="pagesDlgMsg"></p>
+    <div class="row" style="justify-content:flex-end;margin-top:14px">
+      <button class="btn" value="2">Keep 2 pages</button>
+      <button class="btn primary" value="1">Fit to 1 page</button>
+    </div>
+  </form>
+</dialog>
 <script type="module" src="studio.js"></script>
 </body>
 </html>

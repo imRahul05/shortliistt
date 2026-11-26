@@ -1,11 +1,12 @@
 import { getState, save, addHistory, fileToDataURL } from '../lib/storage.js';
 import { analyzeJob, matchJob, effectiveProfile, findSkills, experienceRanges, experienceIntervals, workText, candidateYears } from '../lib/matcher.js';
 import { SKILLS, SKILL_BY_NAME } from '../lib/skills.js';
-import { extractResumeFile, cleanResumeText } from '../lib/resume-parser.js';
+import { extractResumeFile, cleanResumeText, stripRich } from '../lib/resume-parser.js';
+import { templateLetter, defaultLetterMeta, relevantEntries } from '../lib/letter.js';
 import { parseResumeModel, modelSections } from '../lib/resume-model.js';
 import { aiAvailability, AI_LABEL, aiInsights, aiAnswer, aiCoverLetter, downloadModel, aiParseResume, aiJobRequirements } from '../lib/ai.js';
 import { autofillPage } from '../lib/autofill.js';
-import { $, $$, toast, md, download, busy, scoreClass, scoreColor, fallbackCoverLetter, ICON, MARK, fmtMonths, fmtMonth } from '../lib/ui.js';
+import { $, $$, toast, md, download, busy, scoreClass, scoreColor, ICON, MARK, fmtMonths, fmtMonth } from '../lib/ui.js';
 import { escapeHtml as esc, debounce } from '../lib/text.js';
 
 let S = await getState();
@@ -17,10 +18,26 @@ $('#brandMark').outerHTML = MARK;
 $$('[data-icon]').forEach(el => (el.innerHTML = ICON[el.dataset.icon] || ''));
 $$('[data-icon-l]').forEach(el => el.insertAdjacentHTML('afterbegin', ICON[el.dataset.iconL] || ''));
 
+/* ---------------- Collapsible cards ---------------- */
+let collapsed = {};
+try { collapsed = JSON.parse(localStorage.getItem('sl-collapsed') || '{}'); } catch {}
+$$('.card.collapsible').forEach(card => {
+  const h = card.querySelector(':scope > h3');
+  h.insertAdjacentHTML('beforeend', `<span class="chev">${ICON.chevron}</span>`);
+  if (collapsed[card.id]) card.classList.add('collapsed');
+  h.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    card.classList.toggle('collapsed');
+    collapsed[card.id] = card.classList.contains('collapsed');
+    try { localStorage.setItem('sl-collapsed', JSON.stringify(collapsed)); } catch {}
+  });
+});
+
 /* ---------------- Tabs ---------------- */
 function showTab(name) {
   $$('.seg button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   $$('main > section').forEach(s => (s.hidden = s.id !== `tab-${name}`));
+  if (name === 'apply') autoLetter();
 }
 $$('.seg button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 document.addEventListener('click', e => {
@@ -37,25 +54,30 @@ async function refreshAI() {
   aiState = S.settings.useAI ? await aiAvailability() : 'unsupported';
   const pill = $('#aiPill');
   pill.className = 'pill' + (aiOn() ? ' on' : aiState === 'downloadable' ? ' dl' : '');
-  $('.t', pill).textContent = !S.settings.useAI ? 'AI off' : aiOn() ? 'Local AI' : aiState === 'downloadable' ? 'Enable local AI' : aiState === 'downloading' ? 'Downloading AI…' : 'Rule-based';
+  $('.t', pill).textContent = !S.settings.useAI ? 'AI off' : aiOn() ? 'AI ready' : aiState === 'downloadable' ? 'Enable AI' : aiState === 'downloading' ? 'Downloading AI…' : 'No AI';
   pill.title = AI_LABEL[aiState] || '';
   $('#aiSetup').textContent = aiSetupHelp();
-  $('#aiCard').hidden = !aiOn();
+  const canAI = aiOn() || aiState === 'downloadable';
+  $('#aiRow').hidden = !canAI;
+  $('#aiInsightsBtn').lastChild.textContent = aiOn() ? ' Generate AI insights' : ' Enable AI to get insights';
+  $('#clAiBtn').hidden = $('#qBtn').hidden = !aiOn();
   if (match) runAIRequirements();
 }
 function aiSetupHelp() {
   if (!S.settings.useAI) return 'Off. Matching is rule-based and works fully without AI.';
-  if (aiOn()) return 'Gemini Nano is ready. It adds resume parsing, a requirements read, rewrites and cover letters — all on this device.';
-  if (aiState === 'downloadable' || aiState === 'downloading') return 'Click “Enable local AI” at the top to download Chrome’s built-in model once (about 22 GB free disk needed).';
+  if (aiOn()) return 'Chrome’s built-in AI (Gemini Nano) is ready: insights, resume parsing, rewrites and cover letters. It runs on this device and is free.';
+  if (aiState === 'downloadable' || aiState === 'downloading') return 'Click “Enable AI” at the top to download Chrome’s built-in model once (about 22 GB free disk needed).';
   return 'Chrome’s built-in AI isn’t available here (desktop Chrome 138+ with enough memory). Everything else works without it.';
 }
-$('#aiPill').addEventListener('click', async () => {
-  if (aiState !== 'downloadable') return;
+async function enableAI() {
+  if (aiState !== 'downloadable') return false;
   const t = $('#aiPill .t');
-  try { await downloadModel(p => (t.textContent = `Downloading ${Math.round(p * 100)}%`)); toast('Local AI is ready'); }
+  try { await downloadModel(p => (t.textContent = `Downloading ${Math.round(p * 100)}%`)); toast('AI is ready'); }
   catch (e) { toast('Download failed: ' + e.message, 4000); }
-  refreshAI();
-});
+  await refreshAI();
+  return aiOn();
+}
+$('#aiPill').addEventListener('click', enableAI);
 
 /* ---------------- Scanning ---------------- */
 async function activeTab() { const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }); return t; }
@@ -90,6 +112,7 @@ function setNoJob(msg) {
 function setJob(j) {
   job = j;
   jobA = analyzeJob(j);
+  $('#aiCard').hidden = true; $('#aiInsights').innerHTML = '';
   $('#jobTitle').textContent = j.title || 'Untitled role';
   $('#jobMeta').textContent = [j.company, j.location].filter(Boolean).join(' · ') || new URL(j.url, 'https://x').hostname;
   $('#jobSrc').textContent = `via ${j.source || 'page'}`;
@@ -105,6 +128,8 @@ function rescore() {
   renderMatch();
   addHistory({ url: job.url, title: job.title, company: job.company, score: match.score }).then(renderHistory);
   runAIRequirements();
+  if (!$('#tab-apply').hidden) autoLetter();
+  maybePending();
 }
 
 /* ---------------- Rendering ---------------- */
@@ -151,7 +176,6 @@ function renderMatch() {
   $('#kwCount').textContent = m.keywords.length ? `${found}/${m.keywords.length}` : '';
   $('#keywords').innerHTML = m.keywords.length ? m.keywords.map(k => `<span class="chip ${k.found ? 'kw-found' : 'kw-missing'}" title="${k.n}× in the job">${esc(k.word)}</span>`).join('') : '<span class="muted small">No repeated keywords.</span>';
   $('#sugs').innerHTML = m.suggestions.map(s => `<li class="${s.level}">${esc(s.text)}</li>`).join('') || '<li class="tip">Nothing major to fix.</li>';
-  $('#aiInsights').innerHTML = 'A short, honest read of your fit, written on your device.';
 }
 const fact = (k, v) => `<div class="fact"><span class="k">${k}</span><span class="v">${v}</span></div>`;
 
@@ -183,7 +207,7 @@ async function runAIRequirements() {
     out.innerHTML = '<span class="row"><span class="spinner"></span> Reading the requirements…</span>';
     $('#aiReqCount').textContent = '';
     try { data = await aiJobRequirements(jobA); aiReqCache.set(key, data); }
-    catch (e) { out.textContent = 'Local AI could not read this job: ' + e.message; return; }
+    catch (e) { out.textContent = 'AI could not read this job: ' + e.message; return; }
     if (job.url + '|' + jobA.text.length !== key) return;
   }
   const text = (S.resume.text + ' ' + (S.profile.extraSkills || '') + ' ' + (S.resume.detected?.aiSkills || []).join(' ')).toLowerCase();
@@ -198,7 +222,7 @@ async function runAIRequirements() {
   $('#aiReqCount').textContent = rows.length ? `${ok}/${rows.length}` : '';
   out.classList.remove('muted', 'small');
   out.innerHTML = rows.map(r => { const has = inResume(r.p); return `<div class="req ${has ? 'matched' : 'missing'}"><span class="ic">${ICON[has ? 'check' : 'x']}</span><span class="nm">${esc(r.p)}</span><span class="note">${r.imp}</span></div>`; }).join('')
-    + (data.minYears ? `<p class="muted small" style="margin:8px 0 0">AI reads a minimum of ${data.minYears} years. This list is a second opinion; it does not change the score.</p>` : '<p class="muted small" style="margin:8px 0 0">A second opinion from local AI; it does not change the score.</p>');
+    + `<p class="muted small" style="margin:8px 0 0">${data.minYears ? `AI reads a minimum of ${data.minYears} years. ` : ''}A second opinion from AI — it does not change the score.</p>`;
 }
 
 /* ---------------- Job editor ---------------- */
@@ -219,14 +243,16 @@ $('#jeApply').addEventListener('click', async () => {
 $('#scanBtn').addEventListener('click', scan);
 $('#scanBtn2').addEventListener('click', scan);
 
-$('#aiInsightsBtn').addEventListener('click', async () => {
+async function runInsights() {
   if (!match) return;
+  if (!aiOn() && !(await enableAI())) return;
   const btn = $('#aiInsightsBtn'), out = $('#aiInsights');
-  busy(btn, true, 'Thinking…'); out.classList.remove('muted'); out.innerHTML = '';
+  busy(btn, true, 'Thinking…'); $('#aiCard').hidden = false; out.innerHTML = '<span class="muted">Reading the job and your resume…</span>';
   try { await aiInsights({ jobA, resumeText: S.resume.text, match }, { onChunk: t => (out.innerHTML = md(t)) }); }
-  catch (e) { out.innerHTML = `<p class="muted">Local AI error: ${esc(e.message)}</p>`; }
+  catch (e) { out.innerHTML = `<p class="muted">AI error: ${esc(e.message)}</p>`; }
   busy(btn, false);
-});
+}
+$('#aiInsightsBtn').addEventListener('click', runInsights);
 
 $('#tailorBtn').addEventListener('click', async () => {
   await save({ currentJob: job });
@@ -251,24 +277,47 @@ $('#qBtn').addEventListener('click', async () => {
   const q = $('#qText').value.trim(); if (!q) return toast('Type the question first');
   if (!S.resume?.text) return toast('Upload your resume first');
   const btn = $('#qBtn'), out = $('#qOut');
-  if (!aiOn()) { out.value = `Situation:\nWhat I did:\nResult (numbers):\nWhy it matters for ${jobA?.company || 'this role'}:`; toast('Local AI unavailable — here is a structure to fill'); return; }
+  if (!aiOn()) { out.value = `Situation:\nWhat I did:\nResult (numbers):\nWhy it matters for ${jobA?.company || 'this role'}:`; toast('AI unavailable — here is a structure to fill'); return; }
   busy(btn, true, 'Drafting…');
   try { await aiAnswer({ jobA, resumeText: S.resume.text, question: q }, { onChunk: t => (out.value = t) }); }
-  catch (e) { out.value = 'Local AI error: ' + e.message; }
+  catch (e) { out.value = 'AI error: ' + e.message; }
   busy(btn, false);
 });
 
-$('#clBtn').addEventListener('click', async () => {
+/* Cover letter: drafted automatically from the resume for the current job; AI version on demand. */
+let letterFor = null, letterEdited = false;
+const resumeModel = () => parseResumeModel(S.resume?.rich || S.resume?.text || '', { serif: S.resume?.serif });
+function letterFromResume() {
+  if (!match) return;
+  $('#clOut').value = templateLetter({ profile: S.profile, match, jobA, model: resumeModel() });
+  letterFor = job.url; letterEdited = false; saveLetter();
+}
+function autoLetter() {
+  $('#clFor').textContent = job ? [job.title, job.company].filter(Boolean).join(' · ') : '';
+  if (match && (letterFor !== job.url) && !letterEdited) letterFromResume();
+}
+async function saveLetter() {
+  if (!job) return;
+  const { letters = {} } = await chrome.storage.local.get('letters');
+  letters[job.url] = { ...(letters[job.url] || defaultLetterMeta(jobA)), body: $('#clOut').value };
+  await save({ letters });
+}
+$('#clOut').addEventListener('input', debounce(() => { letterEdited = true; saveLetter(); }, 500));
+$('#clBtn').addEventListener('click', () => { if (!match) return toast('Open a job first'); letterFromResume(); });
+$('#clAiBtn').addEventListener('click', async () => {
   if (!match) return toast('Open a job first');
-  const btn = $('#clBtn'), out = $('#clOut');
-  const fallback = () => fallbackCoverLetter({ jobA, match, profile: S.profile, model: parseResumeModel(S.resume.text) });
-  if (!aiOn()) { out.value = fallback(); return; }
+  const btn = $('#clAiBtn'), out = $('#clOut');
   busy(btn, true, 'Writing…');
-  try { await aiCoverLetter({ jobA, resumeText: S.resume.text, profile: S.profile }, { onChunk: t => (out.value = t) }); }
-  catch { out.value = fallback(); }
+  const highlights = relevantEntries(resumeModel(), jobA, ['experience', 'projects']).flatMap(e => e.bullets.slice(0, 2).map(b => (e.company || e.head ? `${e.company || e.head}: ` : '') + b.text)).slice(0, 5);
+  try { await aiCoverLetter({ jobA, resumeText: S.resume.text, profile: S.profile, match, highlights }, { onChunk: t => (out.value = t.trim()) }); letterFor = job.url; saveLetter(); }
+  catch { letterFromResume(); toast('AI failed — drafted from your resume'); }
   busy(btn, false);
 });
-$('#clDl').addEventListener('click', () => download(`Cover Letter - ${(job?.company || 'job').replace(/[^\w -]/g, '')}.txt`, $('#clOut').value));
+$('#clStudio').addEventListener('click', async () => {
+  if (!job) return toast('Open a job first');
+  await saveLetter(); await save({ currentJob: job });
+  chrome.tabs.create({ url: chrome.runtime.getURL('studio/studio.html#letter') });
+});
 
 async function renderHistory() {
   const { history = [] } = await chrome.storage.local.get('history');
@@ -287,11 +336,11 @@ const setStatus = html => ($('#parseStatus').innerHTML = html);
 async function handleFile(file) {
   setStatus('<span class="spinner"></span> Reading your resume…');
   try {
-    const text = await extractResumeFile(file);
-    if (text.length < 100) throw new Error('Almost no text found. If this is a scanned PDF, export a text-based PDF or paste the text below.');
+    const r = await extractResumeFile(file);
+    if (r.text.length < 100) throw new Error('Almost no text found. If this is a scanned PDF, export a text-based PDF or paste the text below.');
     const fileData = file.size < 6e6 ? await fileToDataURL(file) : null;
-    await storeResume(text, { fileName: file.name, fileType: file.type, fileData, detected: {} });
-    prefillProfile(text);
+    await storeResume(r.rich, { fileName: file.name, fileType: file.type, fileData, detected: {}, pages: r.pages, pageSize: r.pageSize, serif: r.serif });
+    prefillProfile(r.rich);
     setStatus('');
     toast('Resume added');
     rescore();
@@ -302,9 +351,10 @@ async function handleFile(file) {
   }
 }
 
-async function storeResume(text, extra = {}) {
-  const model = parseResumeModel(text);
-  S.resume = { ...(S.resume || {}), ...extra, text, sections: modelSections(model), updatedAt: Date.now() };
+async function storeResume(rich, extra = {}) {
+  const text = stripRich(rich);
+  const model = parseResumeModel(rich);
+  S.resume = { ...(S.resume || {}), ...extra, rich, text, sections: modelSections(model), updatedAt: Date.now() };
   await save({ resume: S.resume, tailored: {} });
   renderResume();
 }
@@ -312,7 +362,7 @@ async function storeResume(text, extra = {}) {
 /** AI layer: fill what the rule-based parser could not (years when no dates, extra skills, title). */
 async function enhanceWithAI() {
   if (!aiOn() || !S.resume?.text) return;
-  setStatus('<span class="spinner"></span> Local AI is reading your resume…');
+  setStatus('<span class="spinner"></span> AI is reading your resume…');
   try {
     const r = await aiParseResume(S.resume.text);
     const known = new Set([...findSkills(S.resume.text).keys()].map(n => n.toLowerCase()));
@@ -322,26 +372,36 @@ async function enhanceWithAI() {
     S.resume.detected = { aiSkills, aiYears: +r.totalYears || 0, aiTitle: r.currentTitle || '', aiRoles: r.roles || [] };
     await save({ resume: S.resume });
     if (!S.profile.targetTitle && r.currentTitle) { S.profile.targetTitle = r.currentTitle; await save({ profile: S.profile }); fillProfileForm(); }
-    setStatus(`<span class="ok">Enhanced by local AI</span> · ${aiSkills.length} more skill${aiSkills.length === 1 ? '' : 's'} found`);
+    setStatus(`<span class="ok">Enhanced with AI</span> · ${aiSkills.length} more skill${aiSkills.length === 1 ? '' : 's'} found`);
     renderResume(); rescore();
   } catch (e) { setStatus(''); }
 }
 
-function prefillProfile(text) {
-  const p = S.profile, model = parseResumeModel(text);
+function prefillProfile(rich) {
+  const text = stripRich(rich);
+  const p = S.profile, model = parseResumeModel(rich);
   p.name ||= model.name;
   p.email ||= text.match(/[\w.+-]+@[\w-]+\.[\w.]+/)?.[0] || '';
   p.phone ||= text.match(/\+?\d[\d\s().-]{8,}\d/)?.[0]?.trim() || '';
   p.linkedin ||= text.match(/(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\/in\/[\w\-%]+/i)?.[0] || '';
   p.github ||= text.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/[\w\-]+/i)?.[0] || '';
-  p.location ||= text.slice(0, 600).match(/\b([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)?,\s*(?:[A-Z]{2}|[A-Z][a-zA-Z]+))\b/)?.[1] || '';
-  if (!p.targetTitle && model.headline && model.headline.length < 80) p.targetTitle = model.headline.split(/[|•·,]/)[0].trim();
-  if (!p.currentCompany) {
-    const first = experienceRanges(workText(text, modelSections(model))).sort((a, b) => b.end - a.end)[0];
-    const co = first?.label.match(/(?:—|-|@|\bat\b|,|\|)\s*([A-Z][\w&.\- ]{1,40}?)\s*(?:[,|(]|\s{2,}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{4}|\d{4}|$)/i)?.[1];
-    if (co) p.currentCompany = co.trim();
+  // Location: only from the header (before the first section), e.g. "Pune, India" — never from skills lists.
+  const header = model.contact + ' ' + stripRich(model.headline || '');
+  const loc = header.split(/\s*\|\s*/).map(x => x.trim()).find(x => /^[A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)?,\s*[A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)?$/.test(x) && !findSkills(x).size);
+  if (loc) p.location ||= loc;
+  // Title and company from the most recent experience entry ("Software Engineer" / "Nuvi Technology").
+  const latest = relevantEntries(model, undefined, ['experience'])[0];
+  if (!p.targetTitle) p.targetTitle = stripRich(model.headline || '').split(/[|•·,]/)[0].trim().slice(0, 80) || latest?.role || '';
+  if (!p.currentCompany && latest?.company) p.currentCompany = latest.company;
+  // Portfolio / personal site: any other link or bare domain in the header (e.g. "imrahul.me").
+  if (!p.portfolio) {
+    const head = rich.split('\n').slice(0, 6).join(' ');
+    const urls = [...head.matchAll(/\]\((https?:[^)\s]+)\)/g)].map(m => m[1])
+      .concat([...stripRich(head).matchAll(/(?<![@\w.])((?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:me|dev|io|com|in|app|net|org|co|xyz|site|tech|page|ai|design|portfolio)(?:\/[\w\-./]*)?)(?![\w@])/gi)].map(m => m[1]));
+    const site = urls.find(u => !/linkedin\.com|github\.com|gitlab\.com|mailto:|gmail\.com|outlook\.com|yahoo\.com|leetcode|hackerrank|medium\.com\/@?$/i.test(u));
+    if (site) p.portfolio = site.replace(/\/$/, '');
   }
-  for (const k of ['linkedin', 'github']) if (p[k] && !/^https?:/.test(p[k])) p[k] = 'https://' + p[k];
+  for (const k of ['linkedin', 'github', 'portfolio']) if (p[k] && !/^https?:/.test(p[k])) p[k] = 'https://' + p[k];
   save({ profile: p });
   fillProfileForm();
 }
@@ -355,7 +415,7 @@ function renderResume() {
   $('#fileName').textContent = r.fileName || 'Pasted resume';
   const kinds = (r.sections || []).map(s => s.title);
   $('#fileSub').textContent = `${r.text.split(/\s+/).length} words · ${kinds.length ? kinds.join(', ') : 'no sections found'}`;
-  if (document.activeElement !== $('#resumeText')) $('#resumeText').value = r.text;
+  if (document.activeElement !== $('#resumeText')) $('#resumeText').value = r.rich || r.text;
 
   // Experience
   const wt = workText(r.text, r.sections);
@@ -365,7 +425,7 @@ function renderResume() {
   const cy = candidateYears(r.text, r.sections, S.profile.yearsExperience, r.detected?.aiYears);
   $('#yearsTotal').textContent = S.profile.yearsExperience ? `${S.profile.yearsExperience} yrs (override)` : total ? fmtMonths(total) : cy.years ? `${cy.years} yrs · ${cy.source}` : '';
   $('#roles').innerHTML = ranges.length ? ranges.slice(0, 8).map(x => `<li><span class="rl" title="${esc(x.label)}">${esc(cleanLabel(x.label) || 'Role')}</span><span class="rd">${fmtMonth(x.start)} – ${x.end >= nowM ? 'Present' : fmtMonth(x.end - 1)} · ${fmtMonths(x.end - x.start)}</span></li>`).join('')
-    : `<li class="empty-roles">No date ranges found in your work history.${cy.source === 'local AI' ? ` Local AI estimates ${cy.years} years.` : ' Set your years below.'}</li>`;
+    : `<li class="empty-roles">No date ranges found in your work history.${cy.source === 'local AI' ? ` AI estimates ${cy.years} years.` : ' Set your years below.'}</li>`;
   $('#yearsOverride').placeholder = total ? `${Math.round(total / 1.2) / 10} detected` : 'e.g. 3';
   $('#yearsOverride').value = S.profile.yearsExperience ?? '';
   renderSkills();
@@ -416,7 +476,7 @@ $('#yearsOverride').addEventListener('input', debounce(async e => {
 }, 500));
 
 $('#saveResumeText').addEventListener('click', async () => {
-  await storeResume(cleanResumeText($('#resumeText').value), { detected: S.resume?.detected || {} });
+  await storeResume(cleanResumeText($('#resumeText').value), { detected: S.resume?.detected || {}, fileName: S.resume?.fileName });
   toast('Saved'); rescore();
 });
 
@@ -453,7 +513,32 @@ chrome.storage.onChanged.addListener((ch, area) => {
   if (ch.profile && JSON.stringify(ch.profile.newValue) !== JSON.stringify(S.profile)) { S.profile = ch.profile.newValue || {}; fillProfileForm(); renderResume(); }
 });
 
+/* An action requested from the floating card (e.g. "Generate AI insights") */
+async function maybePending() {
+  const { pendingAction } = await chrome.storage.session.get('pendingAction').catch(() => ({}));
+  if (!pendingAction || !match) return;
+  await chrome.storage.session.remove('pendingAction');
+  if (pendingAction === 'ai-insights') runInsights();
+  if (pendingAction === 'cover-letter') { showTab('apply'); }
+}
+
+/* ---------------- Migrations for data saved by older versions ---------------- */
+async function migrate() {
+  // v1 could mistake a skills line ("React, Next.js") for the location.
+  if (S.profile.location && findSkills(S.profile.location).size) { S.profile.location = ''; await save({ profile: S.profile }); }
+  // v1 stored plain text only: re-read the saved original file to recover formatting and links.
+  if (S.resume?.fileData && !S.resume.rich) {
+    try {
+      const blob = await (await fetch(S.resume.fileData)).blob();
+      const r = await extractResumeFile(new File([blob], S.resume.fileName || 'resume.pdf', { type: blob.type }));
+      if (r.text.length > 100) await storeResume(r.rich, { pages: r.pages, pageSize: r.pageSize, serif: r.serif, tailored: undefined });
+      prefillProfile(r.rich);
+    } catch { /* keep plain text */ }
+  }
+}
+
 /* ---------------- Init ---------------- */
+await migrate();
 fillProfileForm();
 renderResume();
 $('#setWidget').checked = S.settings.widget !== false;

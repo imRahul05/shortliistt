@@ -121,3 +121,8 @@ details textarea{margin-top:8px}
 .history a:hover{text-decoration:underline}
 .history .meta{min-width:0;flex:1}
 .sc.hi{background:var(--good-soft);color:var(--good)}.sc.mid{background:var(--warn-soft);color:var(--warn)}.sc.lo{background:var(--bad-soft);color:var(--bad)}
+.ai-row{margin-top:14px}
+.ai-ico{color:var(--ai)!important}
+.card.collapsible>h3 .count{margin-left:auto}
+.card.collapsible>h3 .count+.chev{margin-left:8px}
+.card.collapsible>h3 .count:empty+.chev{margin-left:0}
