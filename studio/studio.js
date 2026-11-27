@@ -185,7 +185,7 @@ $('#aiSumBtn').addEventListener('click', async () => {
   const btn = $('#aiSumBtn'), out = $('#aiOut');
   busy(btn, true, 'Writing…'); out.hidden = false;
   out.innerHTML = '<div class="label">Proposed summary</div><textarea id="aiSumTxt" rows="5"></textarea><div class="row" style="margin-top:6px"><button class="btn small primary" id="aiSumOk">Use this</button><button class="btn small ghost" id="aiCancel">Discard</button></div>';
-  try { await aiSummary({ jobA, resumeText: modelToText(model), match }, { onChunk: t => ($('#aiSumTxt').value = t.trim()) }); }
+  try { await aiSummary({ jobA, resumeText: modelToText(model), match, profile: { ...S.profile, name: S.profile.name || model.name } }, { onChunk: t => ($('#aiSumTxt').value = t.trim()) }); }
   catch (e) { $('#aiSumTxt').value = 'AI error: ' + e.message; }
   busy(btn, false);
   $('#aiSumOk').onclick = () => { setSummary(model, $('#aiSumTxt').value.trim()); renderEditor(); changed(); out.hidden = true; };

@@ -1,8 +1,12 @@
 // Service worker: scores jobs detected by the content script, sets the toolbar badge, opens the side panel.
 import { analyzeJob, matchJob, effectiveProfile, isOwnContent } from './lib/matcher.js';
 import { scanForm, autofillPage, clickAction, generatePassword } from './lib/autofill.js';
+import { upsertApp, getApps, appKey, dueFollowUps, daysAgo } from './lib/tracker.js';
 
-const setup = () => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+const setup = () => {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  chrome.alarms.create('followups', { delayInMinutes: 1, periodInMinutes: 360 }); // check every 6 hours
+};
 chrome.runtime.onInstalled.addListener(setup);
 chrome.runtime.onStartup.addListener(setup);
 
@@ -12,6 +16,33 @@ async function data() {
   return cache;
 }
 chrome.storage.onChanged.addListener((_, area) => { if (area === 'local') cache = null; });
+
+/* ---------------- Application tracker: last job per tab, follow-up reminders ---------------- */
+async function rememberTabJob(tabId, job) {
+  if (tabId == null) return;
+  const { tabJobs = {} } = await chrome.storage.session.get('tabJobs');
+  tabJobs[tabId] = { url: job.url, title: job.title, company: job.company, location: job.location || '', at: Date.now() };
+  await chrome.storage.session.set({ tabJobs });
+}
+async function tabJob(tabId) { const { tabJobs = {} } = await chrome.storage.session.get('tabJobs'); return tabJobs[tabId]; }
+chrome.tabs.onRemoved.addListener(async id => { const { tabJobs = {} } = await chrome.storage.session.get('tabJobs'); if (tabJobs[id]) { delete tabJobs[id]; chrome.storage.session.set({ tabJobs }); } });
+
+async function checkFollowUps() {
+  const apps = await getApps();
+  const now = Date.now();
+  // Notify at most once a week per application.
+  const due = dueFollowUps(apps, now).filter(a => !a.notifiedAt || now - a.notifiedAt > 7 * 864e5);
+  if (!due.length) return;
+  const first = due[0];
+  const msg = due.length === 1
+    ? `${first.title || 'Your application'}${first.company ? ' at ' + first.company : ''}: applied ${daysAgo(first.appliedAt, now)} days ago. Heard back?`
+    : `${due.length} applications are waiting, e.g. ${first.company || first.title} (${daysAgo(first.appliedAt, now)} days). Update their status or follow up.`;
+  chrome.notifications.create('followups', { type: 'basic', iconUrl: 'icons/icon128.png', title: 'Shortlist · follow up', message: msg, priority: 0 });
+  for (const a of due) apps[a.key] = { ...apps[a.key], notifiedAt: now };
+  await chrome.storage.local.set({ applications: apps });
+}
+chrome.alarms.onAlarm.addListener(a => { if (a.name === 'followups') checkFollowUps(); });
+chrome.notifications.onClicked.addListener(id => { if (id === 'followups') chrome.tabs.create({ url: chrome.runtime.getURL('sidepanel/sidepanel.html#tracker') }); });
 
 function summarize(job, m) {
   const must = m.skills.filter(s => s.importance === 'must' && !s.generic);
@@ -32,19 +63,6 @@ async function setBadge(tabId, score) {
   await chrome.action.setBadgeText({ tabId, text: String(score) });
 }
 
-async function ensureOffscreen() {
-  if (!(await chrome.offscreen.hasDocument?.())) {
-    await chrome.offscreen.createDocument({ url: 'offscreen/offscreen.html', reasons: ['DOM_PARSER'], justification: 'Runs Chrome built-in AI (Prompt API), which needs a document, to show job insights on the page.' }).catch(e => { if (!/single offscreen/i.test(e.message)) throw e; });
-  }
-  // The document's module script may not have registered its listeners yet: wait for a pong.
-  for (let i = 0; i < 40; i++) {
-    const r = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'ping' }).catch(() => null);
-    if (r?.pong) return true;
-    await new Promise(res => setTimeout(res, 75));
-  }
-  throw new Error('AI worker did not start');
-}
-
 /* ---------------- Forms: scan, autofill (with account creation), click page buttons ---------------- */
 const RANK = { signup: 3, signin: 2, application: 1, none: 0 };
 async function scanTab(tabId) {
@@ -60,7 +78,7 @@ async function scanTab(tabId) {
 
 async function autofillTab(tabId) {
   const scan = await scanTab(tabId);
-  const { profile: base = {}, resume, accounts = {}, profileData = {} } = await chrome.storage.local.get(['profile', 'resume', 'accounts', 'profileData']);
+  const { profile: base = {}, resume, accounts = {}, profileData = {}, photo } = await chrome.storage.local.get(['profile', 'resume', 'accounts', 'profileData', 'photo']);
   // Imported structured data (LinkedIn/GitHub) fills in education and current role for application forms.
   const edu = [...(profileData.education || [])].sort((a, b) => String(b.end || '9999').localeCompare(String(a.end || '9999')))[0] || {};
   const cur = (profileData.work || []).find(w => !w.end) || {};
@@ -74,17 +92,13 @@ async function autofillTab(tabId) {
     await chrome.storage.local.set({ accounts });
   } else if (scan.kind === 'signin') password = accounts[scan.host]?.password || null;
   const file = resume?.fileData ? { dataURL: resume.fileData, name: resume.fileName } : null;
-  const res = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: autofillPage, args: [profile, file, { password }] }).catch(e => { throw new Error('Can’t access this page: ' + e.message); });
-  const t = res.reduce((a, r) => ({ filled: a.filled + (r.result?.filled || 0), attached: a.attached + (r.result?.attached || 0), passwordFilled: a.passwordFilled + (r.result?.passwordFilled || 0), terms: a.terms + (r.result?.terms || 0) }), { filled: 0, attached: 0, passwordFilled: 0, terms: 0 });
+  const res = await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, func: autofillPage, args: [profile, file, { password, photo: photo?.dataURL ? photo : null }] }).catch(e => { throw new Error('Can’t access this page: ' + e.message); });
+  const t = res.reduce((a, r) => ({ photo: (a.photo || 0) + (r.result?.photoAttached || 0), filled: a.filled + (r.result?.filled || 0), attached: a.attached + (r.result?.attached || 0), passwordFilled: a.passwordFilled + (r.result?.passwordFilled || 0), terms: a.terms + (r.result?.terms || 0) }), { filled: 0, attached: 0, passwordFilled: 0, terms: 0 });
   return { ...t, kind: scan.kind, host: scan.host, generated, usedSaved: scan.kind === 'signin' && !!password, noEmail: !profile.email, actions: scan.actions };
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   const tabId = sender.tab?.id;
-  if (msg?.target === 'offscreen') return; // handled by the offscreen document
-
-  if (msg?.type === 'ensure-offscreen') { ensureOffscreen().then(() => reply({ ok: true }), e => reply({ ok: false, error: e.message })); return true; }
-
   const formTab = msg?.tabId ?? tabId;
   if (msg?.type === 'form-scan' && formTab != null) { scanTab(formTab).then(reply, e => reply({ kind: 'none', error: e.message })); return true; }
   if (msg?.type === 'autofill' && formTab != null) { autofillTab(formTab).then(reply, e => reply({ error: e.message })); return true; }
@@ -109,6 +123,22 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 
   if (msg?.type === 'no-job' && tabId != null) { setBadge(tabId, null); return; }
 
+  // Tracker: explicit status change from the card or panel.
+  if (msg?.type === 'track' && msg.job?.url) { upsertApp(msg.job, msg.patch || { status: 'applied' }).then(reply, e => reply({ error: e.message })); return true; }
+  // A "thank you for applying" screen: mark the job last seen in this tab (or the job on this page) as applied.
+  if (msg?.type === 'applied-confirmation' && tabId != null) {
+    (async () => {
+      // Job on this page, else the last job seen in this tab, else the most recent job you viewed (Apply often opens a new tab).
+      let job = msg.job || await tabJob(tabId);
+      if (!job) { const { history = [] } = await chrome.storage.local.get('history'); const h = history[0]; if (h && Date.now() - h.at < 3 * 3600e3) job = h; }
+      if (!job?.url) return reply({ ok: false });
+      const apps = await getApps(); const prev = apps[appKey(job.url)];
+      if (prev && prev.status !== 'saved') return reply({ ok: false, already: prev.status });
+      reply({ ok: true, app: await upsertApp(job, { status: 'applied', auto: true }) });
+    })();
+    return true;
+  }
+
   if (msg?.type === 'match' && msg.job) {
     (async () => {
       const { resume, profile = {}, profileData = {} } = await data();
@@ -127,6 +157,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       const sum = summarize(msg.job, m);
       // Job found inside an iframe (e.g. an embedded Greenhouse board): show the card in the top frame.
       if (sender.frameId && tabId != null) chrome.tabs.sendMessage(tabId, { type: 'render', result: sum, job: msg.job }, { frameId: 0 }).catch(() => {});
+      await rememberTabJob(tabId, msg.job);
+      const app = (await getApps())[appKey(msg.job.url)];
+      if (app) sum.app = { status: app.status, appliedAt: app.appliedAt };
       reply(sum);
     })().catch(e => reply({ state: 'error', error: String(e) }));
     return true;

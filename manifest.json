@@ -3,6 +3,7 @@
   "name": "Shortlist — Job Match & Resume Tailor",
   "short_name": "Shortlist",
   "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqZOIcdYf5wi33qNy6s7Oo2CIyEMgyYQHs3VuPbvYP3qPwm0ZEyWJgarG0COlj17+u+MhJpY/4RZaBjERFqlvQS55wNRtD1HfzaI9Z0xUKlx+zPdx1bPb7z4Bwsf0UlyKob7f+5GwluQ1sMGES8rW10Yle/7yiD0puZiHz2407lUC9Ma2JUHcRlhmzT/RQsGrmeBv/kOUqPlEWTzAQP1HRkixkbjK5DeJVkbK0rXvd7X8fVGPyNPYWWghxsw9f+T+A0TjE7rd/eLkkt1sd5c5hWhBkw581tSFQz7PA34hhUnauA9gRFLQZ/MzgB2k3t5eURrTHuEXcI05Tz/yhNZWHwIDAQAB",
   "description": "Scores how well your resume matches any job page, suggests fixes, tailors your resume live and autofills applications. 100% local, free, no API keys.",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -12,7 +13,8 @@
     "scripting",
     "tabs",
     "activeTab",
-    "offscreen"
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "<all_urls>"

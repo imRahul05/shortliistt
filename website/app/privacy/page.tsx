@@ -6,7 +6,7 @@ export const metadata: Metadata = {
 };
 
 const REPO = 'https://github.com/imRahul05/shortliistt';
-const UPDATED = 'November 27, 2026';
+const UPDATED = 'November 28, 2026';
 
 function H({ id, children }: { id: string; children: React.ReactNode }) {
   return <h2 id={id} className="mt-12 scroll-mt-24 text-xl font-semibold tracking-tight text-fg">{children}</h2>;
@@ -49,6 +49,8 @@ export default function Privacy() {
         <li><b className="text-fg">Profile details</b> you enter or that are pre-filled from your resume: name, email, phone, location, links (LinkedIn, GitHub, portfolio), target title, current company, years of experience, notice period, salary expectations and skills.</li>
         <li><b className="text-fg">Content of the web pages you visit</b>, read locally to detect job postings (title, company, description) and application forms. Pages that are not job postings or application forms are not analysed further.</li>
         <li><b className="text-fg">Job history</b>: the jobs you open (title, company, URL, match score, date).</li>
+        <li><b className="text-fg">Application tracker</b>: jobs you mark as applied (or that Shortlist detects from a site’s “thank you for applying” screen), their status, dates and match score, used for follow-up reminders.</li>
+        <li><b className="text-fg">Profile photo</b>, only if you upload one, used to fill photo fields on application forms.</li>
         <li><b className="text-fg">Documents you create</b>: tailored resumes and cover letters.</li>
         <li><b className="text-fg">Imported profile data</b>, only if you choose to import it: from <b className="text-fg">GitHub</b> (your public profile and public repositories: languages, topics, descriptions, stars) and from a <b className="text-fg">LinkedIn data export</b> you upload (positions, education, skills, certifications, and basic profile and contact details).</li>
         <li><b className="text-fg">Site logins created by Shortlist</b>: if you use Autofill on a job site’s create-account form, Shortlist generates a password and saves the email and password for that site so it can fill them when you sign in later.</li>
@@ -82,12 +84,13 @@ export default function Privacy() {
         <li><b className="text-fg">Read and change data on websites you visit</b> (<code className="font-mono text-[13px]">&lt;all_urls&gt;</code>, scripting): needed to detect job postings on any job site or careers page, show the floating score card, and fill application forms. Page content is processed locally and is never transmitted by Shortlist.</li>
         <li><b className="text-fg">Storage / unlimited storage</b>: keep your resume file, profile and drafts on your device.</li>
         <li><b className="text-fg">Side panel, tabs</b>: show the Shortlist panel and know which tab’s job to analyse.</li>
-        <li><b className="text-fg">Offscreen document</b>: run Chrome’s built-in AI for the on-page card, because the Prompt API needs a page context.</li>
+        <li><b className="text-fg">Alarms and notifications</b>: check your tracker every few hours and show a local Chrome notification when an application has had no reply for a week. Nothing is sent anywhere.</li>
       </ul>
 
       <H id="delete">8. Deleting your information</H>
       <ul className="mt-3 list-disc space-y-2 pl-5">
-        <li><b className="text-fg">Everything at once:</b> open Shortlist → <b className="text-fg">Profile → Privacy → Delete all my data</b>. This removes your resume, profile, history, tailored resumes, cover letters and saved site logins.</li>
+        <li><b className="text-fg">Everything at once:</b> open Shortlist → <b className="text-fg">Profile → Privacy → Delete all my data</b>. This removes your resume, profile, photo, history, tracked applications, tailored resumes, cover letters and saved site logins.</li>
+        <li><b className="text-fg">Backups you export</b> (Profile → Privacy → Export data) are files on your computer and include everything above, including saved logins; keep them private and delete them when no longer needed.</li>
         <li><b className="text-fg">A single saved login:</b> Apply → Saved login → <b className="text-fg">Forget</b>.</li>
         <li><b className="text-fg">Individual items:</b> replace your resume, edit or clear profile fields, remove skills, or remove imported work history, education, projects and certifications in Profile → Structured profile.</li>
         <li><b className="text-fg">Uninstalling</b> Shortlist from <code className="font-mono text-[13px]">chrome://extensions</code> removes all of its locally stored data.</li>

@@ -1,6 +1,6 @@
 # Architecture
 
-How the pieces fit together: content scripts on the job page, the extension (background, side panel, Studio, offscreen page), the shared `lib/` code, storage and the optional on-device AI.
+How the pieces fit together: content scripts on the job page, the extension (background, side panel, Studio), the shared `lib/` code, storage and the optional on-device AI.
 
 Everything runs inside the browser. There is no backend: the only network traffic is the job page itself and, optionally, Chrome's one-time download of its built-in model.
 
@@ -13,7 +13,7 @@ flowchart LR
 
   subgraph EXT["② Extension"]
     direction TB
-    BG["background.js<br/>scores jobs · badge · opens panel"] --- OFF["offscreen/<br/>runs AI for the card"]
+    BG["background.js<br/>scores jobs · badge · autofill · reminders"]
     SP["sidepanel/<br/>Match · Apply · Profile"] ~~~ ST["studio/<br/>resume + cover letter editor"]
   end
 

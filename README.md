@@ -22,6 +22,8 @@ Free, private job-application helper. No sign-in, no API keys, no servers. Every
 | Autofill | Detects **create-account**, **sign-in** and **application** forms (Workday, Greenhouse, Lever, iCIMS…). Fills name, email, phone, links, location, experience and attaches your resume. On sign-up it creates a **strong password** (saved per site, shown in Apply → Saved login) and reuses it on sign-in. The page's own buttons (*Create Account*, *Sign In*, *Next*) are mirrored in the card and side panel. Terms/consent boxes are never ticked for you. | No |
 | Resume auto-detection | Experience timeline from date ranges (`Sep 2025 – Present`, `2025-09`, `Sep '25`, `Since …`), skills, title, company, location — editable in Profile. | No |
 | Profile import | **GitHub** (opt-in, public API, no key): languages, topics and top projects become evidence-backed skills and a projects list. **LinkedIn data export** (ZIP/CSV, read locally): work history with exact dates, education, skills, certifications. You review everything before it's added; it improves matching (skills, years) and autofill (education, current role). | No |
+| Application tracker | “Mark as applied” on the card or panel, or automatic when a site shows “Thank you for applying”. Statuses (Applied → Interviewing → Offer / Rejected / No response), a **Tracker** tab, CSV export, and a reminder (Chrome notification + panel) when there’s no reply after 7 days. | No |
+| Photo | Optional profile photo, attached to “photo / headshot” upload fields by autofill. | No |
 | AI layer | Chrome's **built-in Gemini Nano**: fills gaps in resume parsing (extra skills, years when no dates), gives a second-opinion read of job requirements, review, summary, bullet rewrites, cover letter, application answers. Never changes the deterministic score. | Optional |
 
 ### About the AI
@@ -48,11 +50,10 @@ Diagrams live in [`docs/diagrams`](docs/diagrams/README.md):
 
 ## Project layout
 ```
-manifest.json            MV3 manifest (side panel, scripting, storage, offscreen)
-background.js            scores detected jobs, toolbar badge, opens side panel, routes AI to offscreen
+manifest.json            MV3 manifest (side panel, scripting, storage, alarms, notifications) with a fixed `key` so the extension ID never changes
+background.js            scores detected jobs, toolbar badge, opens side panel, autofill, tracker reminders
 content/extract.js       DOM → job {title, company, description}
 content/widget.js        floating score card on job pages (runs in all frames)
-offscreen/               hidden page that runs Chrome's built-in AI for the card
 lib/skills.js            skill taxonomy, aliases, families, implications
 lib/matcher.js           deterministic scoring, date parsing, suggestions
 lib/resume-parser.js     PDF (pdf.js) / DOCX → rich text with bold, italic and links
@@ -60,6 +61,8 @@ lib/resume-model.js      rich text ↔ editable model, HTML render, tailoring he
 lib/docx.js              dependency-free DOCX writer (hyperlinks included)
 lib/letter.js            cover letter drafting from resume + job
 lib/ai.js                optional Chrome built-in AI (Gemini Nano)
+lib/ai-guide.js          shared AI writing guide + candidate facts; strips [placeholders]
+lib/tracker.js           application tracker and follow-up rules
 lib/autofill.js          form autofill (injected into all frames)
 lib/fonts/               Geist, Geist Mono, CMU Serif (OFL)
 lib/pdfjs/               Mozilla pdf.js 4.10 (Apache-2.0), bundled locally
@@ -70,6 +73,21 @@ docs/diagrams/           architecture, job flow, scoring and release diagrams (M
 test/                    `node test/run.mjs` — matcher smoke test
 .github/workflows/       release.yml — versioned zip + GitHub Release
 ```
+
+## Updating (keeps your data)
+The manifest has a fixed `key`, so Shortlist always has the same extension ID (`ebnbceibcenofkeppnencmjbkknmkchm`) and keeps its data across versions.
+
+1. Download the latest zip and **unzip it over your existing Shortlist folder** (replace the files).
+2. Open `chrome://extensions` and click **reload** ↻ on Shortlist.
+
+Loading a *second* folder with **Load unpacked** creates a separate copy, so avoid that. Publishing on the Chrome Web Store later would make updates automatic.
+
+**One-time move from v1.0.9 or earlier** (before the fixed ID and the Export button):
+1. In the *old* copy, open the Shortlist side panel, right-click it → **Inspect** → **Console**, and run:
+   ```js
+   chrome.storage.local.get(null, d => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({ app: 'shortlist', exportedAt: new Date().toISOString(), data: d })])); a.download = 'shortlist-backup.json'; a.click(); });
+   ```
+2. Remove the old copy, load the new version, then **Profile → Privacy → Import data** and pick `shortlist-backup.json`.
 
 ## Releases
 Every push to `main` that changes extension files (anything outside `website/`, `docs/`, `test/`, `.github/` and `*.md`) runs `.github/workflows/release.yml`: it tests the matcher, sets the version to `<major>.<minor>.<build number>` (from `manifest.json`), zips the extension and publishes a GitHub Release. The link above always points to the newest one. Bump `major.minor` in `manifest.json` for bigger releases.
