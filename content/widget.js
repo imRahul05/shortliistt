@@ -284,7 +284,9 @@
     if (h === lastHash) return;
     lastHash = h; lastJob = job; aiHtml = ''; form = null; formSig = '';
     const r = await send({ type: 'match', job });
-    if (r && h === lastHash) render(r, job);
+    if (h !== lastHash) return;
+    if (!r || r.state === 'not-job' || r.state === 'error') { hide(); scheduleForm(400); return; }
+    render(r, job);
   }
   const schedule = ms => { clearTimeout(timer); timer = setTimeout(run, ms); };
 

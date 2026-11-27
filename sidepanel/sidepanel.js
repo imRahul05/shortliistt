@@ -1,5 +1,5 @@
 import { getState, save, addHistory, fileToDataURL } from '../lib/storage.js';
-import { analyzeJob, matchJob, effectiveProfile, findSkills, experienceRanges, experienceIntervals, workText, candidateYears } from '../lib/matcher.js';
+import { analyzeJob, matchJob, effectiveProfile, isOwnContent, findSkills, experienceRanges, experienceIntervals, workText, candidateYears } from '../lib/matcher.js';
 import { SKILLS, SKILL_BY_NAME } from '../lib/skills.js';
 import { extractResumeFile, cleanResumeText, stripRich } from '../lib/resume-parser.js';
 import { templateLetter, defaultLetterMeta, relevantEntries } from '../lib/letter.js';
@@ -81,7 +81,8 @@ $('#aiPill').addEventListener('click', enableAI);
 /* ---------------- Scanning ---------------- */
 async function activeTab() { const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }); return t; }
 
-async function scan() {
+// Automatic scans are as strict as the on-page card; pressing Re-scan also accepts weaker matches.
+async function scan(manual = false) {
   const t = await activeTab();
   currentTabId = t?.id;
   if (!S.resume?.text) { showState('needResume'); }
@@ -89,8 +90,14 @@ async function scan() {
   const btns = [$('#scanBtn'), $('#scanBtn2')];
   btns.forEach(b => b.disabled = true);
   try {
-    const [{ result } = {}] = await chrome.scripting.executeScript({ target: { tabId: t.id }, files: ['content/extract.js'] });
-    if (!result?.ok) setNoJob(); else setJob(result);
+    // Same frames the on-page card looks at: the page itself, then embedded job boards (confident only).
+    const frames = await chrome.scripting.executeScript({ target: { tabId: t.id, allFrames: true }, files: ['content/extract.js'] });
+    const top = frames.find(f => f.frameId === 0)?.result;
+    const result = top?.ok && (top.confident || manual) ? top : frames.map(f => f.result).find(r => r?.ok && r.confident);
+    if (!result?.ok) return setNoJob();
+    const own = isOwnContent(result, S.resume?.text, S.profile);
+    if (own) return setNoJob(own === 'portfolio' ? 'This is your own portfolio, so there is no job to score here.' : own === 'profile' ? 'This is your own profile page, so there is no job to score here.' : 'This page looks like your own resume, so there is no job to score here.');
+    setJob(result);
   } catch (e) { setNoJob(`This page can’t be read (${e.message}).`); }
   finally { btns.forEach(b => b.disabled = false); }
 }
@@ -102,9 +109,10 @@ function showState(which) {
   $('#result').hidden = which !== 'job';
 }
 
+const NO_JOB_MSG = $('#noJobMsg').textContent;
 function setNoJob(msg) {
   job = jobA = match = null;
-  if (msg) $('#noJobMsg').textContent = msg;
+  $('#noJobMsg').textContent = msg || NO_JOB_MSG;
   showState(S.resume?.text ? 'noJob' : 'needResume');
 }
 
@@ -239,8 +247,8 @@ $('#jeApply').addEventListener('click', async () => {
   setJob({ ok: true, url: job?.url || t?.url || 'manual', title: $('#jeTitle').value.trim(), company: $('#jeCompany').value.trim(), description: $('#jeDesc').value, source: 'pasted', location: job?.location || '' });
   $('#jobEditor').hidden = true;
 });
-$('#scanBtn').addEventListener('click', scan);
-$('#scanBtn2').addEventListener('click', scan);
+$('#scanBtn').addEventListener('click', () => scan(true));
+$('#scanBtn2').addEventListener('click', () => scan(true));
 
 async function runInsights() {
   if (!match) return;

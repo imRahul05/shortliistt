@@ -163,14 +163,21 @@ var __shortlistExtract = __shortlistExtract || (() => {
 
   // Heuristic sources (block/heading/density) must also look like a job page — avoids portfolios, blogs, resumes.
   const STRONG = new Set(['structured data', 'your selection']);
-  function jobContext() {
-    if (/apply|career|jobs?\b|job[-_/]|position|opening|vacanc|requisition|recruit|hiring|posting/i.test(location.pathname + location.search + ' ' + location.hostname)) return true;
-    if (/\b(jobs?|careers?|hiring|vacanc(y|ies)|opening|position)\b/i.test(document.title)) return true;
+  // A guessed detection must look like a real posting: job-description section headings AND
+  // (an apply button, or a job-like URL plus a job-like title). Articles about jobs, resumes and
+  // portfolios mention the same words but don't have that structure.
+  const SECTION_HEAD = /^(key |core |your |the |main )?(responsibilities|requirements|qualifications|minimum qualifications|basic qualifications|preferred qualifications|what you('|’)?ll do|what you will do|what we('|’)?re looking for|what you('|’)?ll need|who you are|about the (role|job|position)|nice[- ]to[- ]haves?|must[- ]haves?|you have|skills (and|&) experience|duties)\s*:?$/i;
+  function jobContext(scope) {
+    const heads = [...(scope || document).querySelectorAll('h1,h2,h3,h4,h5,strong,b,[role=heading]')].filter(h => SECTION_HEAD.test(clean(h.textContent))).length;
+    if (!heads) return false;
+    const urlJobish = /apply|career|jobs?\b|job[-_/]|position|opening|vacanc|requisition|recruit|hiring/i.test(location.pathname + location.search + ' ' + location.hostname);
+    const titleJobish = /\b(jobs?|careers?|hiring|vacanc(y|ies)|opening|position|apply)\b/i.test(document.title);
+    let applyBtn = false;
     for (const el of document.querySelectorAll('a, button, [role=button], input[type=submit]')) {
       const t = (el.textContent || el.value || '').replace(/\s+/g, ' ').trim();
-      if (t.length < 40 && /^(easy )?apply( now| for (this|the) (job|role|position))?$|^submit (your )?application$|^i'?m interested$/i.test(t)) return true;
+      if (t.length < 40 && /^(easy )?apply( now| for (this|the) (job|role|position))?$|^submit (your )?application$|^i'?m interested$/i.test(t)) { applyBtn = true; break; }
     }
-    return false;
+    return applyBtn || (urlJobish && titleJobish) || (heads >= 2 && (urlJobish || titleJobish));
   }
 
   return function extract() {
@@ -206,7 +213,8 @@ var __shortlistExtract = __shortlistExtract || (() => {
       location: clean(job.location).slice(0, 120),
       description: job.description.slice(0, 30000),
       source: job.source,
-      confident: !job.weak && (STRONG.has(job.source) || SITES.some(x => x.name === job.source) || jobContext()),
+      // In embedded frames only trust structured data or known job platforms (e.g. an embedded Greenhouse board).
+      confident: !job.weak && (STRONG.has(job.source) || SITES.some(x => x.name === job.source) || (window.top === window && jobContext())),
     };
   };
 })();
