@@ -23,6 +23,31 @@ function DownloadButton({ size = 'lg', label = 'Add to Chrome — free' }: { siz
   );
 }
 
+const faqs: [string, React.ReactNode][] = [
+  ['Is it really free? Do I need an account or an API key?',
+    'Yes, it’s free. No account, no sign-in, no API key and no subscription. Shortlist has no servers: your resume, profile and history stay in your browser.'],
+  ['Do I need AI to use Shortlist?',
+    'No. Detecting jobs, the match score, missing skills, Resume Studio, one-click tailoring, autofill and the application tracker are all rule-based and work on any computer. AI is an optional extra.'],
+  ['What does the AI add, and where does it run?',
+    'Job insights, a quick job summary, cover letters, resume summary and bullet rewrites, working job keywords into your bullets, condensing to one page, answers to form questions and proofreading. It uses Chrome’s built-in Gemini Nano (through Chrome’s Prompt, Summarizer and Proofreader APIs), so it runs on your computer. Shortlist never sends your data to an AI service.'],
+  ['Will installing Shortlist download a 4 GB model?',
+    <>No. The extension is about 1.5 MB (about 3 MB installed). When you open it, Shortlist asks Chrome whether its AI is available. If Chrome already has Gemini Nano (another site or Chrome feature may have downloaded it), AI simply turns on. If not, you’ll see <b className="font-medium text-fg">Enable AI</b>, and Chrome downloads the model only after you click and confirm.</>],
+  ['How big is the AI model?',
+    'About 4 GB, downloaded once by Chrome and shared by every site and extension that uses Chrome’s built-in AI. Chrome asks for 22 GB of free disk before downloading and removes the model if free space drops below 10 GB. Weaker machines may get a smaller version. chrome://on-device-internals shows the exact size.'],
+  ['Which computers support the AI?',
+    <ul className="list-disc space-y-1 pl-5">
+      <li>Desktop Chrome 138 or newer on Windows 10/11, macOS 13 (Ventura) or later, Linux, or ChromeOS on a Chromebook Plus. Not Android or iOS.</li>
+      <li>A GPU with more than 4 GB of video memory, <i>or</i> 16 GB of RAM and 4+ CPU cores.</li>
+      <li>22 GB of free disk space and an unmetered connection for the one-time download.</li>
+    </ul>],
+  ['My computer isn’t supported. What happens?',
+    'The AI buttons stay hidden and everything else works the same. Shortlist checks again every time you open it, so if Chrome later makes the model available (an update, more disk space), AI shows up on its own. Profile → Settings → Device requirements shows what your browser reports.'],
+  ['How much space does Shortlist use? Can I clean it up?',
+    'Your data is usually well under a few MB; the biggest item is your resume file. Profile → Storage shows the size of each part (tailored resumes, cover letters, job history, tracker, photo, saved logins) and lets you clear any of them, or delete everything at once.'],
+  ['Which job sites does it work on?',
+    'LinkedIn, Indeed, Naukri, Greenhouse, Lever, Workday, Ashby and most company careers pages. On other pages you can select the job text or paste it in.'],
+];
+
 const features = [
   { tag: 'Match', title: 'A score you can trust', body: 'Reads the job straight from the page’s DOM, splits must-haves from nice-to-haves, and checks skills, years, degree and keywords. Deterministic — same input, same score.', accent: 'text-blue' },
   { tag: 'Tailor', title: 'Resume Studio', body: 'Live editor with the score updating as you type. Add missing skills, surface relevant bullets, export PDF or DOCX.', accent: 'text-mint' },
@@ -66,6 +91,7 @@ export default async function Home() {
           <div className="flex items-center gap-5 text-sm text-dim">
             <a href="#features" className="hidden hover:text-fg md:block">Features</a>
             <a href="#install" className="hidden hover:text-fg md:block">Install</a>
+            <a href="#faq" className="hidden hover:text-fg md:block">FAQ</a>
             <a href={REPO} aria-label="GitHub" className="hidden text-fg/70 hover:text-fg sm:block"><GitHubIcon /></a>
             <ThemeToggle />
             <DownloadButton size="sm" label="Add to Chrome" />
@@ -179,6 +205,27 @@ export default async function Home() {
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <DownloadButton label="Download Shortlist" />
             {version && <span className="font-mono text-xs text-dim">Latest: {version}</span>}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="mx-auto max-w-6xl scroll-mt-20 px-6 pb-28">
+        <div className="grid gap-10 lg:grid-cols-[1fr_2fr]">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight">Questions.</h2>
+            <p className="mt-3 max-w-sm text-dim">How the free AI works, what your computer needs, and how much space it all takes.</p>
+          </div>
+          <div className="divide-y divide-line rounded-2xl border border-line">
+            {faqs.map(([q, a]) => (
+              <details key={q} className="faq group px-6 py-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 font-medium">
+                  {q}
+                  <span aria-hidden className="grid size-6 shrink-0 place-items-center rounded-full border border-line text-dim transition group-open:rotate-45">+</span>
+                </summary>
+                <div className="mt-3 leading-relaxed text-dim">{a}</div>
+              </details>
+            ))}
           </div>
         </div>
       </section>

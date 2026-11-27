@@ -37,6 +37,34 @@ Free, private job-application helper. No sign-in, no API keys, no servers. Every
 * If it isn't available, Shortlist falls back to rule-based tools and templates. Matching never uses AI, so scores are deterministic and explainable.
 * Prompts tell the model never to invent employers, dates, metrics or skills. AI bullet rewrites are shown as a diff you accept or reject line by line.
 
+## AI: FAQ (devices, download, space)
+
+**Do I need AI?** No. Job detection, the match score, Resume Studio, one-click tailoring, autofill and the tracker are rule-based and work on any computer. AI adds insights, job summaries, cover letters, rewrites, keyword weaving, condensing, form answers and proofreading.
+
+**Where does it run?** On your computer, through Chrome's built-in **Gemini Nano** (Prompt, Summarizer and Proofreader APIs). Shortlist sends nothing to any AI service.
+
+**Does installing Shortlist download a big model?** No. The extension is about 1.5 MB (about 3 MB installed). On open, Shortlist asks Chrome whether its AI is available:
+
+| Chrome says | What you see |
+|---|---|
+| `available` (model already on this computer) | AI features turn on automatically |
+| `downloadable` | An **Enable AI** button. Chrome downloads the model only after you click it and confirm (a dialog states the size) |
+| `unavailable` / not supported | AI buttons stay hidden; everything else works |
+
+Shortlist checks again every time you open it, so if Chrome later gets the model, AI appears on its own.
+
+**How much space?**
+
+| Item | Size | Stored by |
+|---|---|---|
+| Shortlist extension | ~1.5 MB zip, ~3 MB installed (mostly the PDF reader and fonts) | Shortlist |
+| Your data | Usually 50 KB to a few MB (the resume file is the largest item) | Shortlist (Profile → **Storage** shows it and lets you clear each part) |
+| Gemini Nano | **~4 GB**, downloaded once and shared by every site and extension that uses Chrome's built-in AI; weaker machines may get a smaller version | Chrome (`chrome://on-device-internals` shows the exact size) |
+
+Chrome asks for **22 GB free** before downloading (headroom, not usage) and removes the model if free space drops below 10 GB.
+
+**Which computers support it?** Desktop Chrome 138+ on Windows 10/11, macOS 13+, Linux or ChromeOS on a Chromebook Plus (not Android or iOS); a GPU with more than 4 GB of video memory, *or* 16 GB of RAM and 4+ CPU cores; an unmetered connection for the download. Profile → Settings → **Device requirements for AI** shows what your browser reports.
+
 ## Privacy
 Full policy: **[shortliistt.vercel.app/privacy](https://shortliistt.vercel.app/privacy)**.
 

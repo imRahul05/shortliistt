@@ -68,11 +68,18 @@ async function refreshAI() {
 function aiSetupHelp() {
   if (!S.settings.useAI) return 'Off. Matching is rule-based and works fully without AI.';
   if (aiOn()) return 'Chrome’s built-in AI (Gemini Nano) is ready: insights, resume parsing, job summaries, rewrites, proofreading and cover letters. It runs on this device and is free.';
-  if (aiState === 'downloadable' || aiState === 'downloading') return 'Click “Enable AI” at the top to download Chrome’s built-in model once (about 22 GB free disk needed).';
+  if (aiState === 'downloadable' || aiState === 'downloading') return 'Click “Enable AI” at the top to let Chrome download its built-in model (Gemini Nano, about 4 GB, once; needs 22 GB free disk). Nothing downloads until you confirm.';
   return 'Chrome’s built-in AI isn’t available here (desktop Chrome 138+ with enough memory). Everything else works without it.';
+}
+/** Ask before Chrome downloads Gemini Nano (about 4 GB, once, shared by every site and extension). */
+async function confirmDownload() {
+  const dlg = $('#aiDlDlg');
+  dlg.showModal();
+  return new Promise(r => dlg.addEventListener('close', () => r(dlg.returnValue === 'yes'), { once: true }));
 }
 async function enableAI() {
   if (aiState !== 'downloadable') return false;
+  if (!(await confirmDownload())) return false;
   const t = $('#aiPill .t');
   try { await downloadModel(p => (t.textContent = `Downloading ${Math.round(p * 100)}%`)); toast('AI is ready'); }
   catch (e) { toast('Download failed: ' + e.message, 4000); }

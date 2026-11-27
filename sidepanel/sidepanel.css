@@ -214,3 +214,9 @@ details textarea{margin-top:8px}
 .dc.ok span{color:var(--good)}.dc.no span{color:var(--bad)}.dc.na span{color:var(--faint)}
 #briefBtn{margin-top:2px}
 .dc.ok,.dc.no,.dc.na{color:var(--text)}
+.dl-dlg{border:1px solid var(--line);border-radius:14px;padding:18px;max-width:340px;background:var(--panel);color:var(--text);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.dl-dlg::backdrop{background:rgba(0,0,0,.4)}
+.dl-dlg h3{font-size:14.5px;margin:0 0 8px}
+.dl-dlg p{margin:0 0 8px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+.dl-dlg p b{color:var(--text)}
+.dl-dlg ul{margin:0;padding-left:16px;font-size:12.5px;line-height:1.5;color:var(--muted)}
