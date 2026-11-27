@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Shortlist</title>
+<script src="../lib/theme.js"></script>
 <link rel="stylesheet" href="../lib/ui.css">
 <link rel="stylesheet" href="sidepanel.css">
 </head>
@@ -105,7 +106,7 @@
         <ul id="sugs" class="sugs"></ul>
       </div>
 
-      <div class="sticky"><button id="tailorBtn" class="btn primary block">Tailor resume for this job <span data-icon="arrow"></span></button></div>
+      <div class="sticky"><button id="tailorBtn" class="btn primary block shine">Tailor resume for this job <span data-icon="arrow"></span></button></div>
     </div>
   </section>
 
@@ -265,6 +266,8 @@
       <label class="toggle"><span>Floating score card on job pages</span><input type="checkbox" id="setWidget"></label>
       <label class="toggle"><span>Card position</span>
         <select id="setPos"><option value="br">Bottom right</option><option value="bl">Bottom left</option><option value="tr">Top right</option><option value="tl">Top left</option></select></label>
+      <label class="toggle"><span>Appearance</span>
+        <select id="setTheme"><option value="system">Match browser</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
       <label class="toggle"><span>Use AI features (Chrome built-in, free)</span><input type="checkbox" id="setAI"></label>
       <p id="aiSetup" class="muted small" style="margin:8px 0 0"></p>
     </div>

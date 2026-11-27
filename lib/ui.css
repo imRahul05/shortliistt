@@ -9,11 +9,17 @@
   font-family:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:13px;line-height:1.45;color:var(--text);
   -webkit-font-smoothing:antialiased;font-feature-settings:"ss01","cv11";
 }
-@media (prefers-color-scheme:dark){:root{
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
   --bg:#0c0c0e;--panel:#141417;--panel-2:#1b1b20;--hover:#23232a;--text:#f2f2f4;--muted:#9b9ba6;--faint:#6d6d78;--line:#26262c;
   --brand:#f2f2f4;--brand-2:#d9d9de;--on-brand:#0c0c0e;--brand-soft:#23232a;--ring:rgba(242,242,244,.16);
   --good:#3ccf86;--good-soft:#122a1d;--warn:#f0a542;--warn-soft:#30220f;--bad:#f2706a;--bad-soft:#341614;--info:#7ea2ff;--info-soft:#18213a;
   --shadow:none;}}
+:root[data-theme=dark]{
+  --bg:#0c0c0e;--panel:#141417;--panel-2:#1b1b20;--hover:#23232a;--text:#f2f2f4;--muted:#9b9ba6;--faint:#6d6d78;--line:#26262c;
+  --brand:#f2f2f4;--brand-2:#d9d9de;--on-brand:#0c0c0e;--brand-soft:#23232a;--ring:rgba(242,242,244,.16);
+  --good:#3ccf86;--good-soft:#122a1d;--warn:#f0a542;--warn-soft:#30220f;--bad:#f2706a;--bad-soft:#341614;--info:#7ea2ff;--info-soft:#18213a;
+  --shadow:none;}
+:root{color-scheme:light dark}:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text)}
 code,.mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -82,7 +88,8 @@ label.field>input,label.field>textarea,label.field>select{margin-top:4px}
 
 /* AI actions: one clear blue accent, used only for AI */
 :root{--ai:#2563eb;--ai-2:#1d4ed8;--ai-soft:#eef3ff;--ai-line:#cfdcfb}
-@media (prefers-color-scheme:dark){:root{--ai:#3b82f6;--ai-2:#60a5fa;--ai-soft:#152342;--ai-line:#22386a}}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--ai:#3b82f6;--ai-2:#60a5fa;--ai-soft:#152342;--ai-line:#22386a}}
+:root[data-theme=dark]{--ai:#3b82f6;--ai-2:#60a5fa;--ai-soft:#152342;--ai-line:#22386a}
 .btn.ai{background:var(--ai);border-color:var(--ai);color:#fff;box-shadow:0 1px 2px rgba(37,99,235,.25),inset 0 1px 0 rgba(255,255,255,.15)}
 .btn.ai:hover{background:var(--ai-2);border-color:var(--ai-2)}
 .btn.ai:disabled{background:var(--panel-2);border-color:var(--line);color:var(--muted);box-shadow:none}
@@ -97,3 +104,16 @@ label.field>input,label.field>textarea,label.field>select{margin-top:4px}
 .card.collapsible.collapsed>h3{margin-bottom:0}
 .card.collapsible.collapsed>h3 .chev{transform:rotate(-90deg)}
 .card.collapsible.collapsed>:not(h3){display:none!important}
+
+/* Shine: a diagonal light sweep on the main call-to-action buttons */
+.btn.ai,.btn.shine{position:relative;overflow:hidden;isolation:isolate}
+.btn.ai::after,.btn.shine::after{content:"";position:absolute;inset:-2px auto -2px -60%;width:45%;pointer-events:none;z-index:1;
+  background:linear-gradient(105deg,transparent 0,rgba(255,255,255,0) 20%,rgba(255,255,255,.55) 50%,rgba(255,255,255,0) 80%,transparent 100%);
+  transform:skewX(-20deg);animation:shine 3.6s cubic-bezier(.4,0,.2,1) infinite}
+.btn.shine.primary::after{background:linear-gradient(105deg,transparent 0,rgba(255,255,255,0) 20%,rgba(255,255,255,.38) 50%,rgba(255,255,255,0) 80%,transparent 100%)}
+:root[data-theme=dark] .btn.shine.primary::after{background:linear-gradient(105deg,transparent,rgba(37,99,235,.28) 50%,transparent)}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .btn.shine.primary::after{background:linear-gradient(105deg,transparent,rgba(37,99,235,.28) 50%,transparent)}}
+.btn.ai:hover::after,.btn.shine:hover::after{animation-duration:1.4s}
+.btn:disabled::after{display:none}
+@keyframes shine{0%{left:-60%}38%,100%{left:130%}}
+@media (prefers-reduced-motion:reduce){.btn.ai::after,.btn.shine::after{animation:none;display:none}}

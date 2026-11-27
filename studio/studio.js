@@ -1,9 +1,11 @@
 import { getState, save } from '../lib/storage.js';
-import { analyzeJob, matchJob, findSkillOccurrences, effectiveProfile } from '../lib/matcher.js';
-import { parseResumeModel, modelToText, modelSections, renderResumeHTML, RESUME_CSS, RESUME_FONTS, buildHighlighter, reorderSkills, addSkills, prioritizeBullets, templateSummary, setSummary, newSection, inline } from '../lib/resume-model.js';
+import { analyzeJob, matchJob, findSkillOccurrences, effectiveProfile, candidateSkills } from '../lib/matcher.js';
+import { stripRich } from '../lib/resume-parser.js';
+import { tokenize, stem } from '../lib/text.js';
+import { parseResumeModel, modelToText, modelSections, renderResumeHTML, RESUME_CSS, RESUME_FONTS, buildHighlighter, reorderSkills, addSkills, prioritizeBullets, templateSummary, setSummary, newSection, inline, listBullets, setBullet, removeBullets, weakestBullets, sameFacts, bulletRelevance, missingFromResume, addEntry, entryForRole } from '../lib/resume-model.js';
 import { modelToDocx, letterToDocx } from '../lib/docx.js';
 import { templateLetter, defaultLetterMeta, relevantEntries } from '../lib/letter.js';
-import { aiAvailability, aiSummary, aiBullets, aiCoverLetter } from '../lib/ai.js';
+import { aiAvailability, aiSummary, aiBullets, aiCoverLetter, aiWeave, aiCondense } from '../lib/ai.js';
 import { $, $$, toast, download, busy, scoreClass, scoreColor, ICON, MARK } from '../lib/ui.js';
 import { escapeHtml, debounce } from '../lib/text.js';
 
@@ -26,7 +28,8 @@ let letter = letters[jobKey] || { ...defaultLetterMeta(jobA), body: '' };
 let doc = location.hash === '#letter' ? 'letter' : 'resume';
 let match = null, aiState = 'unsupported', scale = 1;
 const prof = () => effectiveProfile(S.resume, S.profile, S.profileData);
-const baseScore = jobA && S.resume?.text ? matchJob(jobA, { text: S.resume.text, sections: S.resume.sections, profile: prof() }).score : null;
+const docProfile = () => ({ ...prof(), extraSkills: '', aiSkills: [] });
+const baseScore = jobA && S.resume?.text ? matchJob(jobA, { text: S.resume.text, sections: S.resume.sections, profile: docProfile() }).score : null;
 
 const KINDS = ['summary', 'experience', 'skills', 'education', 'projects', 'certifications', 'awards', 'other'];
 
@@ -128,13 +131,21 @@ function renderPreview() {
   for (let k = 1; k < pages; k++) page.insertAdjacentHTML('beforeend', `<div class="guide" style="top:${MARGIN.tb * PX + k * avail}px"><span>Page ${k + 1}</span></div>`);
   model._naturalPages = Math.ceil((natural - 1) / avail);
   const over = pages > maxPages;
+  lastFit = doc === 'resume' ? { pages, max: maxPages, natural: model._naturalPages, scale: s, over } : null;
   $('#pageInfo').innerHTML = `<span>${pages} page${pages > 1 ? 's' : ''} · ${model.pageSize}</span>${s < 1 ? `<span>text ${Math.round(s * 100)}%</span>` : ''}${over ? `<span class="warn">Doesn’t fit on ${maxPages} page${maxPages > 1 ? 's' : ''} even at the smallest size — trim content${maxPages === 1 && doc === 'resume' ? ' or allow 2 pages' : ''}.</span>` : ''}`;
 }
 
 /* ---------------- Live score ---------------- */
+// The Studio scores the document itself: skills saved only in your profile count once they are on the page.
+const matchOf = m => matchJob(jobA, { text: modelToText(m), sections: modelSections(m), profile: docProfile() });
+const scoreOf = m => (jobA ? matchOf(m).score : 0);
+const clone = m => JSON.parse(JSON.stringify(m));
+const gainOf = fn => { if (!jobA) return 0; const c = clone(model); fn(c); return scoreOf(c) - (match?.score ?? scoreOf(model)); };
+const plus = n => (n > 0 ? `+${n}` : '');
+
 const rescore = debounce(() => {
   if (!jobA) return;
-  match = matchJob(jobA, { text: modelToText(model), sections: modelSections(model), profile: prof() });
+  match = matchOf(model);
   $('#scoreNow').textContent = match.score;
   $('#scoreNow').style.color = scoreColor(match.score);
   $('#verdictNow').textContent = match.verdict;
@@ -142,31 +153,248 @@ const rescore = debounce(() => {
   const live = $('#scoreLive');
   live.textContent = `${match.score}% match`;
   live.className = 'score-live ' + scoreClass(match.score);
-  const miss = match.skills.filter(s => s.status !== 'matched' && !s.generic);
-  $('#missChips').innerHTML = miss.length ? miss.map(s => `<span class="chip add ${s.status}" data-skill="${escapeHtml(s.name)}" title="${s.status === 'implied' ? 'Implied by ' + escapeHtml(s.via) + ' — add explicitly' : s.status === 'related' ? 'You have ' + escapeHtml(s.via) : s.importance + ' skill'}">+ ${escapeHtml(s.name)}</span>`).join('') : '<span class="muted small">All job skills are covered.</span>';
-  const kws = match.keywords.filter(k => !k.found);
-  $('#kwChips').innerHTML = kws.length ? kws.map(k => `<span class="chip kw-missing" title="Appears ${k.n}× in job">${escapeHtml(k.word)}</span>`).join('') : '<span class="muted small">All frequent job keywords present.</span>';
+  const d = baseScore == null ? 0 : match.score - baseScore;
+  const dl = $('#scoreDelta'); dl.hidden = !d; dl.textContent = (d > 0 ? '+' : '') + d; dl.className = 'delta ' + (d > 0 ? 'up' : 'down');
+  renderSteps();
 }, 150);
 
-$('#missChips').addEventListener('click', e => {
-  const c = e.target.closest('.chip.add'); if (!c) return;
-  const name = c.dataset.skill;
-  if (!confirm(`Add "${name}" to your Skills section?\nOnly add skills you genuinely have.`)) return;
-  addSkills(model, [name]); renderEditor(); changed(); toast(`Added ${name}`);
+/* ---------------- Undo ---------------- */
+const undoStack = [];
+function pushUndo(label) { undoStack.push({ label, m: JSON.stringify(model) }); if (undoStack.length > 40) undoStack.shift(); $('#undoBtn').disabled = false; }
+function undo() {
+  const u = undoStack.pop(); if (!u) return;
+  model = JSON.parse(u.m); renderEditor(); changed();
+  $('#undoBtn').disabled = !undoStack.length; toast(`Undone: ${u.label}`);
+}
+$('#undoBtn').addEventListener('click', undo);
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !e.target.closest('input,textarea,select')) { e.preventDefault(); undo(); }
+});
+/** Apply a change with undo, and tell the user what it did to the score. */
+function act(label, fn) {
+  const before = scoreOf(model);
+  pushUndo(label); fn(model); renderEditor(); changed();
+  const d = jobA ? scoreOf(model) - before : 0;
+  toast(d ? `${label} · ${d > 0 ? '+' : ''}${d} points` : label);
+}
+
+/* ---------------- Steps: everything that can raise the score, one click each ---------------- */
+const picked = new Set();   // missing skills the user says they have
+const kwOff = new Set();    // keywords the user unticked
+const doneSteps = new Set();
+const rf = { title: '', company: '', start: '', end: '', bullets: '' }; // "add a role" form
+let roleForm = false, lastFit = null;
+
+function plan() {
+  const nonGeneric = match.skills.filter(s => !s.generic);
+  const profDirect = candidateSkills('', prof()).direct;
+  const fromProfile = nonGeneric.filter(s => s.status !== 'matched' && profDirect.has(s.name)).map(s => s.name);
+  const implied = nonGeneric.filter(s => s.status === 'implied' && !fromProfile.includes(s.name));
+  const missing = nonGeneric.filter(s => (s.status === 'missing' || s.status === 'related') && !fromProfile.includes(s.name));
+  const kws = match.keywords.filter(k => !k.found);
+  const extra = missingFromResume(model, S.profileData || {}, jobA);
+  return { fromProfile, implied, missing, kws, ...extra };
+}
+const selectedKws = p => p.kws.filter(k => !kwOff.has(k.word));
+
+const step = (key, title, gain, body, { done = false, tone = '' } = {}) =>
+  `<div class="step ${tone}${done ? ' done' : ''}" data-step="${key}"><div class="st-head"><span class="st-title">${done ? ICON.check : ''}${title}</span>${gain ? `<span class="gain">${gain}</span>` : ''}</div>${done ? '' : body}</div>`;
+const btn = (doIt, label, cls = '', extra = '') => `<button class="btn small ${cls}" data-do="${doIt}" ${extra}>${cls.includes('ai') ? ICON.spark : ''}${label}</button>`;
+const chipList = (items, kind, isOn, title = () => '') => `<div class="chips">${items.map(v => `<button class="chip pick${isOn(v) ? ' on' : ''}" data-pick="${kind}" data-v="${escapeHtml(v)}" title="${escapeHtml(title(v))}">${escapeHtml(v)}</button>`).join('')}</div>`;
+
+function renderSteps() {
+  if (!jobA || !match || doc !== 'resume') return;
+  const p = plan(), out = [], aiOK = aiState === 'available';
+
+  if (p.fromProfile.length) out.push(step('profile', 'Skills from your profile that this resume doesn’t show', plus(gainOf(c => addSkills(c, p.fromProfile))),
+    `<p class="st-sub">You saved these in your profile, so they’re yours. Put them on the page so recruiters and ATS see them.</p>${chipList(p.fromProfile, 'none', () => true)}<div class="row">${btn('profile-add', `Add ${p.fromProfile.length} to Skills`, 'primary')}</div>`, { tone: 'hot' }));
+
+  if (p.implied.length) out.push(step('implied', 'Name the skills your experience already shows', plus(gainOf(c => addSkills(c, p.implied.map(s => s.name)))),
+    `<p class="st-sub">${p.implied.slice(0, 3).map(s => `${escapeHtml(s.via)} → ${escapeHtml(s.name)}`).join(' · ')}${p.implied.length > 3 ? ' …' : ''}</p><div class="row">${btn('implied-add', `Add ${p.implied.length} to Skills`, 'primary')}</div>`));
+
+  if (p.missing.length) {
+    const sel = p.missing.filter(s => picked.has(s.name)).map(s => s.name);
+    const g = sel.length ? plus(gainOf(c => addSkills(c, sel))) : (n => (n > 0 ? `up to +${n}` : ''))(gainOf(c => addSkills(c, p.missing.map(s => s.name))));
+    const must = match.skills.filter(s => s.importance === 'must' && !s.generic && s.status === 'missing').map(s => s.name);
+    const cap = must.length >= 3 ? 55 : must.length ? 75 : null;
+    out.push(step('missing', 'Missing skills: tick the ones you really have', g,
+      `${cap ? `<p class="st-sub cap">Your score can’t go above ${cap} while the job’s must-haves are missing: <b>${must.map(escapeHtml).join(', ')}</b>. If you have them, tick and add them.</p>` : ''}${chipList(p.missing.map(s => s.name), 'miss', v => picked.has(v), v => { const s = p.missing.find(x => x.name === v); return s.status === 'related' ? `You have ${s.via}` : `${s.importance} skill`; })}<div class="row">${btn('miss-add', sel.length ? `Add ${sel.length} to Skills` : 'Add to Skills', 'primary', sel.length ? '' : 'disabled')}</div>`));
+  }
+
+  if (p.kws.length) {
+    const kw = selectedKws(p);
+    const g = gainOf(c => c.sections.push({ kind: 'other', title: '_', body: p.kws.map(k => k.word).join(' ') }));
+    out.push(step('kw', 'Work the job’s keywords into your bullets', g > 0 ? `up to +${g}` : '',
+      `<p class="st-sub">${aiOK ? 'AI rewrites a few bullets where the word honestly fits. You review each one.' : 'Turn on AI in Shortlist settings to work these in automatically, or edit a bullet below.'}</p>${chipList(p.kws.map(k => k.word), 'kw', v => !kwOff.has(v), v => `Appears ${p.kws.find(k => k.word === v).n}× in the job`)}${aiOK ? `<div class="row">${btn('kw-ai', `Work in ${kw.length} keyword${kw.length === 1 ? '' : 's'}`, 'ai', kw.length ? '' : 'disabled')}</div>` : ''}`));
+  }
+
+  const y = match.years, gap = y.required != null && y.candidate < y.required;
+  if (gap || p.roles.length) {
+    const roles = p.roles.map((r, i) => `<div class="add-item"><div><b>${escapeHtml(r.label)}</b><div class="muted small">${escapeHtml(r.sub)}</div></div>${btn('role-add', 'Add', '', `data-i="${i}"`)}</div>`).join('');
+    const form = roleForm ? `<div class="role-form">
+      <div class="grid2"><label class="field">Title<input type="text" data-rf="title" value="${escapeHtml(rf.title)}" placeholder="Software Engineer Intern"></label><label class="field">Company<input type="text" data-rf="company" value="${escapeHtml(rf.company)}"></label></div>
+      <div class="grid2"><label class="field">Start<input type="text" data-rf="start" value="${escapeHtml(rf.start)}" placeholder="Jun 2022"></label><label class="field">End<input type="text" data-rf="end" value="${escapeHtml(rf.end)}" placeholder="Present"></label></div>
+      <label class="field">What you did (one line per bullet)<textarea data-rf="bullets" rows="3">${escapeHtml(rf.bullets)}</textarea></label>
+      <div class="row">${btn('role-save', 'Add to Experience', 'primary')}${btn('role-cancel', 'Cancel', 'ghost')}</div></div>` : '';
+    out.push(step('exp', gap ? `Job asks for ${y.required}+ years · this resume shows ${y.candidate}` : 'Roles from your LinkedIn that aren’t on this resume', p.roles.length ? plus(gainOf(c => p.roles.forEach(r => addEntry(c, 'experience', r.text, { top: r.current })))) : '',
+      `${roles}<p class="st-sub">${gap ? 'Internships, freelance, contract or open-source work all count. ' : ''}${!(S.profileData?.work || []).length ? 'Import your LinkedIn data in Profile to add past roles in one click. ' : ''}</p>${form || `<div class="row">${btn('role-new', '+ Add a role')}</div>`}`, { tone: gap ? 'warn' : '' }));
+  }
+
+  if (p.projects.length) out.push(step('proj', 'GitHub projects that fit this job', plus(gainOf(c => p.projects.forEach(r => addEntry(c, 'projects', r.text)))),
+    p.projects.map((r, i) => `<div class="add-item"><div><b>${escapeHtml(r.label)}</b><div class="muted small">${escapeHtml(r.sub)}</div></div>${btn('proj-add', 'Add', '', `data-i="${i}"`)}</div>`).join('')));
+
+  const hasSum = !!model.sections.find(s => s.kind === 'summary')?.body.trim();
+  out.push(step('sum', hasSum ? 'Rewrite the summary for this job' : 'Add a summary for this job', plus(gainOf(c => setSummary(c, templateSummary({ profile: S.profile, match, jobA, model: c })))),
+    `<div class="row">${aiOK ? btn('sum-ai', 'Write with AI', 'ai') : ''}${btn('sum-tpl', aiOK ? 'Quick template' : 'Write summary', aiOK ? '' : 'primary')}</div>`, { done: doneSteps.has('sum') }));
+
+  out.push(step('order', 'Lead with what this job asks for', '', `<p class="st-sub">Moves matching skills and bullets to the top of each list.</p><div class="row">${btn('order', 'Order skills & bullets')}</div>`, { done: doneSteps.has('order') }));
+
+  if (lastFit && lastFit.natural > lastFit.max && (lastFit.over || lastFit.scale < 0.95)) {
+    const msg = lastFit.over ? `Doesn’t fit on ${lastFit.max} page${lastFit.max > 1 ? 's' : ''}, even with smaller text` : `Fits ${lastFit.max} page${lastFit.max > 1 ? 's' : ''} only with text at ${Math.round(lastFit.scale * 100)}%`;
+    out.push(step('len', msg, '', `<p class="st-sub">Shorter bullets read better than small text. Condensing keeps every number; trimming drops your least relevant bullets (undo anytime).</p><div class="row">${aiOK ? btn('condense', 'Condense bullets', 'ai') : ''}${btn('trim', 'Trim weakest bullets', aiOK ? '' : 'primary')}${lastFit.max === 1 ? btn('keep2', 'Use 2 pages', 'ghost') : ''}</div>`, { tone: lastFit.over ? 'warn' : '' }));
+  }
+
+  $('#steps').innerHTML = out.join('');
+}
+
+$('#steps').addEventListener('input', e => { const k = e.target.dataset.rf; if (k) rf[k] = e.target.value; });
+$('#steps').addEventListener('click', async e => {
+  const pk = e.target.closest('[data-pick]');
+  if (pk) {
+    const v = pk.dataset.v;
+    if (pk.dataset.pick === 'miss') picked.has(v) ? picked.delete(v) : picked.add(v);
+    if (pk.dataset.pick === 'kw') kwOff.has(v) ? kwOff.delete(v) : kwOff.add(v);
+    return renderSteps();
+  }
+  const b = e.target.closest('[data-do]'); if (!b || b.disabled) return;
+  const p = plan(), d = b.dataset.do;
+  if (d === 'profile-add') act(`Added ${p.fromProfile.length} skills from your profile`, c => addSkills(c, p.fromProfile));
+  if (d === 'implied-add') act(`Added ${p.implied.length} skills`, c => addSkills(c, p.implied.map(s => s.name)));
+  if (d === 'miss-add') { const sel = p.missing.filter(s => picked.has(s.name)).map(s => s.name); picked.clear(); act(`Added ${sel.join(', ')}`, c => addSkills(c, sel)); }
+  if (d === 'kw-ai') weave(selectedKws(p), b);
+  if (d === 'role-add') { const r = p.roles[+b.dataset.i]; act(`Added ${r.label}`, c => addEntry(c, 'experience', r.text, { top: r.current })); }
+  if (d === 'proj-add') { const r = p.projects[+b.dataset.i]; act(`Added ${r.label}`, c => addEntry(c, 'projects', r.text)); }
+  if (d === 'role-new') { roleForm = true; renderSteps(); $('[data-rf=title]')?.focus(); }
+  if (d === 'role-cancel') { roleForm = false; renderSteps(); }
+  if (d === 'role-save') {
+    if (!rf.title.trim() && !rf.company.trim()) return toast('Add a title or company');
+    const text = entryForRole({ title: rf.title.trim(), company: rf.company.trim(), start: rf.start.trim(), end: /^(present|current|now)?$/i.test(rf.end.trim()) ? '' : rf.end.trim(), description: rf.bullets }, model.sections.some(s => s.kind === 'experience' && /^\*\*/m.test(s.body)));
+    roleForm = false; act(`Added ${rf.title || rf.company}`, c => addEntry(c, 'experience', text, { top: !rf.end.trim() || /present|current/i.test(rf.end) }));
+    Object.keys(rf).forEach(k => (rf[k] = ''));
+  }
+  if (d === 'sum-tpl') { doneSteps.add('sum'); act('Summary written for this job', c => setSummary(c, templateSummary({ profile: S.profile, match, jobA, model: c }))); }
+  if (d === 'sum-ai') aiSummaryFlow(b);
+  if (d === 'order') { doneSteps.add('order'); act('Most relevant skills and bullets first', c => orderAll(c)); }
+  if (d === 'keep2') act('Allowed 2 pages', c => { c.pages = 2; c.pagesChosen = true; });
+  if (d === 'trim') trimToFit();
+  if (d === 'condense') condense(b);
 });
 
-$('#reorderBtn').addEventListener('click', () => {
-  reorderSkills(model, match ? match.skills.filter(s => s.status === 'matched' || s.status === 'implied').sort((a, b) => b.weight - a.weight).map(s => s.name) : []);
-  renderEditor(); changed(); toast('Job-relevant skills moved first');
-});
-$('#bulletsBtn').addEventListener('click', () => { prioritizeBullets(model, jobA); renderEditor(); changed(); toast('Most relevant bullets moved up'); });
-$('#sumBtn').addEventListener('click', () => {
-  const text = templateSummary({ profile: S.profile, match, jobA, model });
-  if (model.sections.find(s => s.kind === 'summary')?.body && !confirm('Replace your summary with this?\n\n' + text)) return;
-  setSummary(model, text); renderEditor(); changed();
+function orderAll(c) {
+  reorderSkills(c, match ? match.skills.filter(s => s.status === 'matched' || s.status === 'implied').sort((a, b) => b.weight - a.weight).map(s => s.name) : []);
+  prioritizeBullets(c, jobA);
+}
+
+/* ---------------- One click: tailor automatically ---------------- */
+$('#autoBtn').addEventListener('click', async () => {
+  if (!jobA) return;
+  const btnEl = $('#autoBtn'), aiOK = aiState === 'available';
+  const before = scoreOf(model), p = plan();
+  pushUndo('Tailor automatically');
+  addSkills(model, [...p.fromProfile, ...p.implied.map(s => s.name)]);
+  match = matchOf(model); orderAll(model);
+  doneSteps.add('order'); doneSteps.add('sum');
+  renderEditor(); changed();
+  busy(btnEl, true, aiOK ? 'Writing summary…' : 'Tailoring…');
+  let sum = '';
+  if (aiOK) { try { sum = (await aiSummary({ jobA, resumeText: modelToText(model), match: matchOf(model), profile: { ...S.profile, name: S.profile.name || model.name } })).trim(); } catch { /* template below */ } }
+  setSummary(model, sum || templateSummary({ profile: S.profile, match: matchOf(model), jobA, model }));
+  renderEditor(); changed();
+  busy(btnEl, false);
+  const d = scoreOf(model) - before;
+  toast(d > 0 ? `Tailored · +${d} points. Undo anytime.` : 'Tailored. Undo anytime.', 3200);
+  const kws = selectedKws(plan());
+  if (aiOK && kws.length) weave(kws, btnEl);
 });
 
-/* ---------------- AI ---------------- */
+/* ---------------- AI review flows ---------------- */
+const plainText = t => escapeHtml(stripRich(t));
+function markAdded(t, words = []) {
+  let h = plainText(t);
+  for (const w of words) h = h.replace(new RegExp(`\\b(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*)`, 'i'), '<mark>$1</mark>');
+  return h;
+}
+function review(title, props, note, onApply) {
+  const out = $('#aiOut'); out.hidden = false;
+  out.innerHTML = `<div class="label">${escapeHtml(title)} <span class="muted">· check every line is true</span></div>` +
+    props.map((p, i) => `<label class="prop"><input type="checkbox" data-i="${i}" checked><div><div>${markAdded(p.neu, p.added)}</div><div class="old">${plainText(p.old)}</div>${note ? `<div class="why">${escapeHtml(note(p))}</div>` : ''}</div></label>`).join('') +
+    '<div class="row" style="margin-top:8px"><button class="btn small primary" id="revOk">Apply selected</button><button class="btn small ghost" id="revNo">Discard</button></div>';
+  $('#revOk').onclick = () => { const sel = [...out.querySelectorAll('input:checked')].map(cb => props[+cb.dataset.i]); out.hidden = true; if (sel.length) onApply(sel); };
+  $('#revNo').onclick = () => (out.hidden = true);
+  out.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function working(msg) { const out = $('#aiOut'); out.hidden = false; out.innerHTML = `<div class="muted small row"><span class="spinner"></span> ${escapeHtml(msg)}</div>`; out.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+function failed(msg) { $('#aiOut').innerHTML = `<div class="muted small">${escapeHtml(msg)}</div><div class="row" style="margin-top:6px"><button class="btn small ghost" onclick="this.closest('.ai-out').hidden=true">Close</button></div>`; }
+
+async function weave(kws, btnEl) {
+  const pool = listBullets(model).map(b => ({ ...b, r: bulletRelevance(b.text, jobA) })).sort((a, b) => b.r - a.r).slice(0, 12);
+  if (!pool.length) return toast('Add some bullets to Experience or Projects first');
+  busy(btnEl, true, 'Placing keywords…'); working(`Finding bullets where ${kws.slice(0, 4).map(k => k.word).join(', ')}${kws.length > 4 ? '…' : ''} honestly fit…`);
+  let props = [];
+  try { props = await aiWeave({ jobA, bullets: pool.map(b => ({ i: b.id, text: b.text })), terms: kws.slice(0, 10).map(k => k.word), profile: S.profile }); }
+  catch (e) { busy(btnEl, false); return failed('AI error: ' + e.message); }
+  busy(btnEl, false);
+  const byId = new Map(pool.map(b => [b.id, b])), seen = new Set();
+  const stems = t => new Set(tokenize(stripRich(t)).map(stem));
+  const good = props.map(p => {
+    const b = byId.get(p.i); if (!b || seen.has(p.i) || p.text === b.text || !sameFacts(b.text, p.text)) return null;
+    const s0 = stems(b.text), s1 = stems(p.text);
+    const added = kws.filter(k => s1.has(k.stem) && !s0.has(k.stem)).map(k => k.word);
+    if (!added.length) return null;
+    seen.add(p.i); return { id: p.i, old: b.text, neu: p.text, added };
+  }).filter(Boolean);
+  if (!good.length) return failed('These keywords didn’t fit any bullet without changing its facts. Untick a few and try again, or add them by hand where they’re true.');
+  review('Keyword rewrites', good, p => `adds ${p.added.join(', ')}`, sel => act(`Worked in ${sel.flatMap(p => p.added).length} keywords`, c => sel.forEach(p => setBullet(c, p.id, p.neu))));
+}
+
+async function aiSummaryFlow(btnEl) {
+  busy(btnEl, true, 'Writing…'); const out = $('#aiOut'); out.hidden = false;
+  out.innerHTML = '<div class="label">Proposed summary</div><textarea id="aiSumTxt" rows="5"></textarea><div class="row" style="margin-top:6px"><button class="btn small primary" id="aiSumOk">Use this</button><button class="btn small ghost" id="aiCancel">Discard</button></div>';
+  out.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  try { await aiSummary({ jobA, resumeText: modelToText(model), match, profile: { ...S.profile, name: S.profile.name || model.name } }, { onChunk: t => ($('#aiSumTxt').value = t.trim()) }); }
+  catch (e) { $('#aiSumTxt').value = 'AI error: ' + e.message; }
+  busy(btnEl, false);
+  $('#aiSumOk').onclick = () => { const t = $('#aiSumTxt').value.trim(); out.hidden = true; doneSteps.add('sum'); act('Summary updated', c => setSummary(c, t)); };
+  $('#aiCancel').onclick = () => (out.hidden = true);
+}
+
+async function condense(btnEl) {
+  const long = listBullets(model).filter(b => b.words > 18).sort((a, b) => b.words - a.words).slice(0, 10);
+  if (!long.length) return toast('Bullets are already short. Try “Trim weakest bullets”.');
+  busy(btnEl, true, 'Condensing…'); working(`Shortening ${long.length} long bullets…`);
+  let props = [];
+  try { props = await aiCondense({ jobA, bullets: long.map(b => ({ i: b.id, text: b.text })) }); }
+  catch (e) { busy(btnEl, false); return failed('AI error: ' + e.message); }
+  busy(btnEl, false);
+  const byId = new Map(long.map(b => [b.id, b])), wc = t => stripRich(t).split(/\s+/).filter(Boolean).length;
+  const good = props.map(p => { const b = byId.get(p.i); return b && wc(p.text) < b.words && sameFacts(b.text, p.text, { maxGrow: 1 }) ? { id: p.i, old: b.text, neu: p.text, added: [] } : null; }).filter(Boolean);
+  if (!good.length) return failed('Couldn’t shorten these without losing facts. Try “Trim weakest bullets”.');
+  review('Shorter bullets', good, p => `${wc(p.old)} → ${wc(p.neu)} words`, sel => act(`Condensed ${sel.length} bullets`, c => sel.forEach(p => setBullet(c, p.id, p.neu))));
+}
+
+function trimToFit() {
+  pushUndo('Trim weakest bullets');
+  const removed = [];
+  for (let k = 0; k < 12 && lastFit && (lastFit.over || lastFit.natural > lastFit.max && lastFit.scale < 0.95); k++) {
+    const w = weakestBullets(model, jobA, 1)[0]; if (!w) break;
+    removed.push(stripRich(w.text)); removeBullets(model, [w.id]); renderPreview();
+  }
+  if (!removed.length) { undoStack.pop(); $('#undoBtn').disabled = !undoStack.length; return toast(lastFit && !lastFit.over && lastFit.scale >= 0.95 ? 'Already fits at a readable size' : 'Nothing left to trim safely: each entry keeps its best bullet'); }
+  renderEditor(); changed();
+  toast(`Removed ${removed.length} least relevant bullet${removed.length > 1 ? 's' : ''}. Undo to bring them back.`, 3200);
+}
+
+/* ---------------- AI: rewrite a whole section ---------------- */
 function fillSecSelect() {
   const opts = model.sections.map((s, i) => ({ s, i })).filter(({ s }) => /^\s*[-•*]\s+/m.test(s.body));
   $('#aiSec').innerHTML = opts.map(({ s, i }) => `<option value="${i}">${escapeHtml(s.title)}</option>`).join('') || '<option value="">(no bullets)</option>';
@@ -175,51 +403,43 @@ function fillSecSelect() {
 async function initAI() {
   aiState = S.settings.useAI ? await aiAvailability() : 'unsupported';
   const ok = aiState === 'available';
-  $('#aiState').textContent = ok ? '' : aiState === 'downloadable' ? '— enable AI from the Shortlist panel first' : '— not available in this browser';
-  ['#aiSumBtn', '#aiBulBtn', '#aiSec'].forEach(s => ($(s).disabled = !ok || !jobA));
+  $('#aiState').textContent = ok ? '' : aiState === 'downloadable' ? '· enable AI from the Shortlist panel first' : '· not available in this browser';
+  ['#aiBulBtn', '#aiSec'].forEach(s => ($(s).disabled = !ok || !jobA));
   $('#genLetterAI').disabled = !ok || !jobA;
-  $('#letterHint').textContent = !jobA ? 'Open a job first so the letter can be tailored to it.' : ok ? 'AI writes from your resume, profile and this job. Review every sentence before sending.' : 'AI isn’t available in this browser — “Generate from resume” builds the letter from your best-matching experience.';
+  $('#autoBtn').classList.toggle('ai', ok); $('#autoBtn').classList.toggle('primary', !ok);
+  $('#autoHint').textContent = ok
+    ? 'Adds skills you already have, orders skills and bullets for this job, writes a new summary, then suggests keyword rewrites for you to review. Undo anytime.'
+    : 'Adds skills you already have, orders skills and bullets for this job and writes a summary. Undo anytime.';
+  $('#letterHint').textContent = !jobA ? 'Open a job first so the letter can be tailored to it.' : ok ? 'AI writes from your resume, profile and this job. Review every sentence before sending.' : 'AI isn’t available in this browser. “Generate from resume” builds the letter from your best-matching experience.';
+  renderSteps();
 }
-
-$('#aiSumBtn').addEventListener('click', async () => {
-  const btn = $('#aiSumBtn'), out = $('#aiOut');
-  busy(btn, true, 'Writing…'); out.hidden = false;
-  out.innerHTML = '<div class="label">Proposed summary</div><textarea id="aiSumTxt" rows="5"></textarea><div class="row" style="margin-top:6px"><button class="btn small primary" id="aiSumOk">Use this</button><button class="btn small ghost" id="aiCancel">Discard</button></div>';
-  try { await aiSummary({ jobA, resumeText: modelToText(model), match, profile: { ...S.profile, name: S.profile.name || model.name } }, { onChunk: t => ($('#aiSumTxt').value = t.trim()) }); }
-  catch (e) { $('#aiSumTxt').value = 'AI error: ' + e.message; }
-  busy(btn, false);
-  $('#aiSumOk').onclick = () => { setSummary(model, $('#aiSumTxt').value.trim()); renderEditor(); changed(); out.hidden = true; };
-  $('#aiCancel').onclick = () => (out.hidden = true);
-});
 
 $('#aiBulBtn').addEventListener('click', async () => {
   const idx = $('#aiSec').value; if (idx === '') return;
   const sec = model.sections[+idx];
-  const lines = sec.body.split('\n');
-  const bIdx = lines.map((l, i) => (/^\s*[-•*]\s+/.test(l) ? i : -1)).filter(i => i >= 0);
-  const bullets = bIdx.map(i => lines[i].replace(/^\s*[-•*]\s+/, ''));
-  const btn = $('#aiBulBtn'), out = $('#aiOut');
-  busy(btn, true, `Rewriting ${bullets.length}…`); out.hidden = false;
-  out.innerHTML = '<div class="muted small row"><span class="spinner"></span> Working through bullets…</div>';
-  const proposals = [];
+  const bullets = listBullets(model, [sec.kind]).filter(b => b.si === +idx);
+  const btnEl = $('#aiBulBtn');
+  busy(btnEl, true, `Rewriting ${bullets.length}…`); working('Working through bullets…');
+  const props = [];
   try {
     for (let k = 0; k < bullets.length; k += 5) {
       const chunk = bullets.slice(k, k + 5);
-      const res = await aiBullets({ jobA, bullets: chunk });
-      chunk.forEach((b, j) => proposals.push({ old: b, neu: res[j] || b }));
-      out.innerHTML = `<div class="muted small row"><span class="spinner"></span> ${proposals.length}/${bullets.length} done…</div>`;
+      const res = await aiBullets({ jobA, bullets: chunk.map(b => b.text) });
+      chunk.forEach((b, j) => { const neu = res[j]; if (neu && neu !== b.text && sameFacts(b.text, neu)) props.push({ id: b.id, old: b.text, neu, added: [] }); });
+      working(`${Math.min(k + 5, bullets.length)}/${bullets.length} done…`);
     }
-  } catch (e) { out.innerHTML = `<div class="muted small">AI error: ${escapeHtml(e.message)}</div>`; busy(btn, false); return; }
-  busy(btn, false);
-  out.innerHTML = `<div class="label">Review rewrites for “${escapeHtml(sec.title)}” <span class="muted">— verify every fact</span></div>` +
-    proposals.map((p, i) => `<label class="prop"><input type="checkbox" data-i="${i}" ${p.neu !== p.old ? 'checked' : ''}><div><div>${escapeHtml(p.neu)}</div><div class="old">${escapeHtml(p.old)}</div></div></label>`).join('') +
-    '<div class="row" style="margin-top:8px"><button class="btn small primary" id="aiBulOk">Apply selected</button><button class="btn small ghost" id="aiCancel">Discard</button></div>';
-  $('#aiBulOk').onclick = () => {
-    out.querySelectorAll('input[type=checkbox]').forEach(cb => { if (cb.checked) { const i = +cb.dataset.i; lines[bIdx[i]] = '- ' + proposals[i].neu; } });
-    sec.body = lines.join('\n'); renderEditor(); changed(); out.hidden = true; toast('Bullets updated');
-  };
-  $('#aiCancel').onclick = () => (out.hidden = true);
+  } catch (e) { busy(btnEl, false); return failed('AI error: ' + e.message); }
+  busy(btnEl, false);
+  if (!props.length) return failed('No safe rewrites: the AI changed facts or numbers, so nothing was suggested.');
+  review(`Rewrites for “${sec.title}”`, props, null, sel => act(`Rewrote ${sel.length} bullets`, c => sel.forEach(p => setBullet(c, p.id, p.neu))));
 });
+$('#rewriteCard > h3').addEventListener('click', () => $('#rewriteCard').classList.toggle('collapsed'));
+
+/* ---------------- Theme ---------------- */
+const THEMES = ['system', 'light', 'dark'];
+function paintTheme() { const t = S.settings.theme || 'system'; $('#themeBtn').innerHTML = ICON[{ system: 'monitor', light: 'sun', dark: 'moon' }[t]]; $('#themeBtn').title = `Theme: ${t === 'system' ? 'match browser' : t} (click to change)`; }
+$('#themeBtn').addEventListener('click', () => { S.settings.theme = THEMES[(THEMES.indexOf(S.settings.theme || 'system') + 1) % 3]; save({ settings: S.settings }); paintTheme(); });
+paintTheme();
 
 /* ---------------- Cover letter ---------------- */
 function renderLetterEditor() {

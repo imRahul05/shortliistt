@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Shortlist Studio</title>
+<script src="../lib/theme.js"></script>
 <link rel="stylesheet" href="../lib/ui.css">
 <link rel="stylesheet" href="studio.css">
 <style id="resumeCss"></style>
@@ -20,7 +21,8 @@
     <option value="latex">LaTeX</option><option value="classic">Classic</option><option value="modern">Modern</option><option value="compact">Compact</option></select></label>
   <label class="ctl" title="Page length"><span>Length</span><select id="pages"><option value="1">Fit to 1 page</option><option value="2">Up to 2 pages</option></select></label>
   <label class="ctl" title="Paper size"><span>Paper</span><select id="psize"><option>Letter</option><option>A4</option></select></label>
-  <label class="toggle-inline"><input type="checkbox" id="hl"> Highlight job skills</label>
+  <label class="toggle-inline" title="Highlight job skills in the preview"><input type="checkbox" id="hl"> Highlight</label>
+  <button class="btn small ghost icon" id="themeBtn" title="Theme"></button>
   <button class="btn small ghost" id="resetBtn" title="Discard edits and reload your uploaded resume">Reset</button>
   <button class="btn small" id="txtBtn">TXT</button>
   <button class="btn small" id="docxBtn">DOCX</button>
@@ -32,40 +34,29 @@
     <!-- RESUME EDITOR -->
     <div id="resumeSide">
       <div class="card tailor" id="tailor">
-        <h3 id="tailorTitle">Tailor for this job</h3>
+        <div class="t-head"><h3 id="tailorTitle">Tailor for this job</h3><button class="btn small ghost" id="undoBtn" disabled title="Undo the last change (Ctrl+Z)" data-icon-l="undo">Undo</button></div>
         <div id="noJobMsg" class="muted small" hidden>Open a job and click “Tailor resume” in the Shortlist panel to see live matching here. You can still edit and export.</div>
         <div id="tailorBody">
           <div class="score-row">
             <div><div class="big" id="scoreNow">–</div><div class="muted small">now</div></div>
             <div class="muted">from</div>
             <div><div class="big muted" id="scoreBase">–</div><div class="muted small">original</div></div>
+            <span class="delta" id="scoreDelta" hidden></span>
             <div class="verdict" id="verdictNow"></div>
           </div>
-          <div class="block">
-            <div class="label">Missing skills <span class="muted">— click only the ones you really have</span></div>
-            <div class="chips" id="missChips"></div>
-          </div>
-          <div class="block">
-            <div class="label">Missing job keywords</div>
-            <div class="chips" id="kwChips"></div>
-          </div>
-          <div class="block">
-            <div class="label">Quick tailoring</div>
-            <div class="row">
-              <button class="btn small" id="reorderBtn">Order skills by relevance</button>
-              <button class="btn small" id="bulletsBtn">Relevant bullets first</button>
-              <button class="btn small" id="sumBtn">Write summary</button>
-            </div>
-          </div>
-          <div class="block" id="aiBlock">
-            <div class="label">AI rewrite <span class="muted" id="aiState"></span></div>
-            <div class="row">
-              <button class="btn small ai" id="aiSumBtn" data-icon-l="spark">Summary</button>
-              <select id="aiSec" class="sec-select"></select>
-              <button class="btn small ai" id="aiBulBtn" data-icon-l="spark">Rewrite bullets</button>
-            </div>
-            <div id="aiOut" class="ai-out" hidden></div>
-          </div>
+          <button class="btn block shine" id="autoBtn" data-icon-l="spark">Tailor automatically</button>
+          <p class="muted small auto-hint" id="autoHint"></p>
+          <div id="steps" class="steps"></div>
+          <div id="aiOut" class="ai-out" hidden></div>
+        </div>
+      </div>
+
+      <div class="card collapsible collapsed" id="rewriteCard">
+        <h3>Rewrite a section with AI <span class="muted small" id="aiState" style="font-weight:400"></span></h3>
+        <p class="muted small" style="margin:0 0 8px">Stronger verbs and the job’s wording, same facts. You review every line.</p>
+        <div class="row">
+          <select id="aiSec" class="sec-select"></select>
+          <button class="btn small ai" id="aiBulBtn" data-icon-l="spark">Rewrite bullets</button>
         </div>
       </div>
 
