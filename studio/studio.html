@@ -24,6 +24,7 @@
   <label class="toggle-inline" title="Highlight job skills in the preview"><input type="checkbox" id="hl"> Highlight</label>
   <button class="btn small ghost icon" id="themeBtn" title="Theme"></button>
   <button class="btn small ghost" id="resetBtn" title="Discard edits and reload your uploaded resume">Reset</button>
+  <button class="btn small" id="proofBtn" data-icon-l="check">Proofread</button>
   <button class="btn small" id="txtBtn">TXT</button>
   <button class="btn small" id="docxBtn">DOCX</button>
   <button class="btn small primary" id="pdfBtn">Download PDF</button>
@@ -31,6 +32,7 @@
 
 <div class="layout">
   <aside class="left">
+    <div id="proofOut" class="ai-out proof-out" hidden></div>
     <!-- RESUME EDITOR -->
     <div id="resumeSide">
       <div class="card tailor" id="tailor">

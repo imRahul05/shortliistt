@@ -5,7 +5,7 @@ import { tokenize, stem } from '../lib/text.js';
 import { parseResumeModel, modelToText, modelSections, renderResumeHTML, RESUME_CSS, RESUME_FONTS, buildHighlighter, reorderSkills, addSkills, prioritizeBullets, templateSummary, setSummary, newSection, inline, listBullets, setBullet, removeBullets, weakestBullets, sameFacts, bulletRelevance, missingFromResume, addEntry, entryForRole } from '../lib/resume-model.js';
 import { modelToDocx, letterToDocx } from '../lib/docx.js';
 import { templateLetter, defaultLetterMeta, relevantEntries } from '../lib/letter.js';
-import { aiAvailability, aiSummary, aiBullets, aiCoverLetter, aiWeave, aiCondense } from '../lib/ai.js';
+import { aiAvailability, aiSummary, aiBullets, aiCoverLetter, aiWeave, aiCondense, proofreadAvailable, proofreadLines, diffWords } from '../lib/ai.js';
 import { $, $$, toast, download, busy, scoreClass, scoreColor, ICON, MARK } from '../lib/ui.js';
 import { escapeHtml, debounce } from '../lib/text.js';
 
@@ -324,17 +324,19 @@ function markAdded(t, words = []) {
   for (const w of words) h = h.replace(new RegExp(`\\b(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*)`, 'i'), '<mark>$1</mark>');
   return h;
 }
-function review(title, props, note, onApply) {
-  const out = $('#aiOut'); out.hidden = false;
+function review(title, props, note, onApply, sel = '#aiOut') {
+  const out = $(sel); out.hidden = false;
   out.innerHTML = `<div class="label">${escapeHtml(title)} <span class="muted">· check every line is true</span></div>` +
-    props.map((p, i) => `<label class="prop"><input type="checkbox" data-i="${i}" checked><div><div>${markAdded(p.neu, p.added)}</div><div class="old">${plainText(p.old)}</div>${note ? `<div class="why">${escapeHtml(note(p))}</div>` : ''}</div></label>`).join('') +
+    props.map((p, i) => `<label class="prop"><input type="checkbox" data-i="${i}" checked><div><div>${p.html || markAdded(p.neu, p.added)}</div><div class="old">${plainText(p.old)}</div>${note ? `<div class="why">${escapeHtml(note(p))}</div>` : ''}</div></label>`).join('') +
     '<div class="row" style="margin-top:8px"><button class="btn small primary" id="revOk">Apply selected</button><button class="btn small ghost" id="revNo">Discard</button></div>';
-  $('#revOk').onclick = () => { const sel = [...out.querySelectorAll('input:checked')].map(cb => props[+cb.dataset.i]); out.hidden = true; if (sel.length) onApply(sel); };
-  $('#revNo').onclick = () => (out.hidden = true);
+  $('#revOk', out).onclick = () => { const sel = [...out.querySelectorAll('input:checked')].map(cb => props[+cb.dataset.i]); out.hidden = true; if (sel.length) onApply(sel); };
+  $('#revNo', out).onclick = () => (out.hidden = true);
   out.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
-function working(msg) { const out = $('#aiOut'); out.hidden = false; out.innerHTML = `<div class="muted small row"><span class="spinner"></span> ${escapeHtml(msg)}</div>`; out.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
-function failed(msg) { $('#aiOut').innerHTML = `<div class="muted small">${escapeHtml(msg)}</div><div class="row" style="margin-top:6px"><button class="btn small ghost" onclick="this.closest('.ai-out').hidden=true">Close</button></div>`; }
+function working(msg, sel = '#aiOut') { const out = $(sel); out.hidden = false; out.innerHTML = `<div class="muted small row"><span class="spinner"></span> ${escapeHtml(msg)}</div>`; out.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+function failed(msg, sel = '#aiOut') { const out = $(sel); out.hidden = false; out.innerHTML = `<div class="muted small">${escapeHtml(msg)}</div><div class="row" style="margin-top:6px"><button class="btn small ghost" data-close>Close</button></div>`; }
+// Extension pages block inline handlers, so close buttons are delegated.
+document.addEventListener('click', e => { const c = e.target.closest('[data-close]'); if (c) c.closest('.ai-out').hidden = true; });
 
 async function weave(kws, btnEl) {
   const pool = listBullets(model).map(b => ({ ...b, r: bulletRelevance(b.text, jobA) })).sort((a, b) => b.r - a.r).slice(0, 12);
@@ -435,6 +437,42 @@ $('#aiBulBtn').addEventListener('click', async () => {
 });
 $('#rewriteCard > h3').addEventListener('click', () => $('#rewriteCard').classList.toggle('collapsed'));
 
+/* ---------------- Proofread (Chrome Proofreader API, or the Prompt API as a fallback) ---------------- */
+const BUL_LINE = /^(\s*[-•*]\s+)(.+)$/;
+function proofTargets() {
+  if (doc === 'letter') return (letter.body || '').split('\n').map((l, li) => ({ li, prefix: '', text: l })).filter(t => t.text.trim().length > 3);
+  const out = [];
+  model.sections.forEach((sec, si) => {
+    if (sec.kind === 'skills') return;
+    sec.body.split('\n').forEach((l, li) => {
+      const b = l.match(BUL_LINE);
+      if (b) out.push({ si, li, prefix: b[1], text: b[2] });
+      else if (sec.kind === 'summary' && l.trim()) out.push({ si, li, prefix: '', text: l });
+    });
+  });
+  return out;
+}
+$('#proofBtn').addEventListener('click', async () => {
+  const items = proofTargets(), btnEl = $('#proofBtn');
+  if (!items.length) return toast(doc === 'letter' ? 'Write the letter first' : 'Nothing to proofread yet');
+  busy(btnEl, true, 'Checking…'); working(`Checking spelling and grammar in ${items.length} line${items.length > 1 ? 's' : ''}…`, '#proofOut');
+  let res;
+  try { res = await proofreadLines(items.map(t => t.text)); }
+  catch (e) { busy(btnEl, false); return failed('Proofreading failed: ' + e.message, '#proofOut'); }
+  busy(btnEl, false);
+  if (!res.fixes.length) { failed('No spelling or grammar issues found.', '#proofOut'); return; }
+  const props = res.fixes.map(f => ({ t: items[f.i], old: f.before, neu: f.after, html: diffWords(stripRich(f.before), stripRich(f.after), escapeHtml).html }));
+  review(`${props.length} fix${props.length > 1 ? 'es' : ''} found${res.engine === 'proofreader' ? ' · Chrome Proofreader' : ''}`, props, null, sel => {
+    if (doc === 'letter') {
+      const lines = letter.body.split('\n'); sel.forEach(p => (lines[p.t.li] = p.neu)); letter.body = lines.join('\n');
+      renderLetterEditor(); renderPreview(); persist(); toast(`Applied ${sel.length} fix${sel.length > 1 ? 'es' : ''}`);
+    } else act(`Applied ${sel.length} spelling/grammar fix${sel.length > 1 ? 'es' : ''}`, c => sel.forEach(p => {
+      const lines = c.sections[p.t.si].body.split('\n'); lines[p.t.li] = p.t.prefix + p.neu; c.sections[p.t.si].body = lines.join('\n');
+    }));
+  }, '#proofOut');
+});
+proofreadAvailable().then(ok => { const b = $('#proofBtn'); b.disabled = !ok || !S.settings.useAI; b.title = b.disabled ? 'Needs Chrome’s built-in AI (enable it in the Shortlist panel)' : 'Check spelling, grammar and punctuation'; });
+
 /* ---------------- Theme ---------------- */
 const THEMES = ['system', 'light', 'dark'];
 function paintTheme() { const t = S.settings.theme || 'system'; $('#themeBtn').innerHTML = ICON[{ system: 'monitor', light: 'sun', dark: 'moon' }[t]]; $('#themeBtn').title = `Theme: ${t === 'system' ? 'match browser' : t} (click to change)`; }
@@ -484,6 +522,7 @@ function setDoc(d) {
   $('#pages').disabled = d !== 'resume';
   $('#hl').closest('label').hidden = d !== 'resume';
   $('#resetBtn').hidden = d !== 'resume';
+  $('#proofOut').hidden = true;
   if (d === 'letter') { renderLetterEditor(); if (!letter.body && jobA) letterFromResume(); }
   renderPreview();
 }
