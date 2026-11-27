@@ -84,6 +84,7 @@
       <div class="card collapsible" id="cBrief" hidden>
         <h3><span data-icon="spark" class="h-ico ai-ico"></span>Job in brief <span class="count" id="briefSrc"></span></h3>
         <div id="brief" class="md small"></div>
+        <button class="btn small ai" id="briefBtn" data-icon-l="spark" hidden>Summarize this job</button>
       </div>
 
       <div class="card collapsible" id="cReq">
@@ -275,6 +276,24 @@
         <select id="setTheme"><option value="system">Match browser</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
       <label class="toggle"><span>Use AI features (Chrome built-in, free)</span><input type="checkbox" id="setAI"></label>
       <p id="aiSetup" class="muted small" style="margin:8px 0 0"></p>
+      <details class="req-box" id="aiReqBox">
+        <summary>Device requirements for AI</summary>
+        <ul class="req-list">
+          <li><b>OS</b> Windows 10 or 11, macOS 13 (Ventura) or later, Linux, or ChromeOS on a Chromebook Plus. Not available on Android or iOS.</li>
+          <li><b>Disk</b> At least 22 GB free on the drive with your Chrome profile. Chrome removes the model if free space drops below 10 GB.</li>
+          <li><b>Hardware</b> A GPU with more than 4 GB of video memory, <i>or</i> 16 GB of RAM and 4+ CPU cores.</li>
+          <li><b>Network</b> An unmetered connection for the one-time model download.</li>
+        </ul>
+        <div class="dev-check" id="devCheck"></div>
+        <p class="muted small" style="margin:6px 0 0">Source: Chrome for Developers, “Get started with built-in AI”. Matching, tailoring and autofill work without AI.</p>
+      </details>
+    </div>
+
+    <div class="card" id="storageCard">
+      <h3>Storage <span class="count" id="stTotal"></span></h3>
+      <p class="muted small lead">What Shortlist keeps in this browser. Clear anything you no longer need.</p>
+      <div id="stRows" class="st-rows"></div>
+      <div class="st-model"><div><b>Chrome’s AI model</b><div class="muted small">Gemini Nano is stored and managed by Chrome, not Shortlist (a few GB, shared by every site and extension that uses it).</div></div><button class="btn small ghost" id="stModel">Details</button></div>
     </div>
 
     <div class="card">
