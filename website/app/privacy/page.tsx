@@ -62,7 +62,7 @@ export default function Privacy() {
 
       <H id="ai">4. On-device AI (Gemini Nano)</H>
       <ul className="mt-3 list-disc space-y-2 pl-5">
-        <li>AI features (insights, rewrites, cover letters, answers, resume parsing) are optional. They use <b className="text-fg">Chrome’s built-in AI (Gemini Nano) through the Prompt API</b>.</li>
+        <li>AI features (insights, job summaries, rewrites, proofreading, cover letters, answers, resume parsing) are optional. They use <b className="text-fg">Chrome’s built-in AI (Gemini Nano) through the Prompt, Summarizer and Proofreader APIs</b>.</li>
         <li>The resume and job text sent to the model are <b className="text-fg">processed locally on your device</b>. Shortlist does not send them to Google, Anthropic, OpenAI or any other AI service.</li>
         <li><b className="text-fg">Chrome downloads the built-in model separately</b>, from Google, the first time AI is enabled. That download is handled by Chrome under Google’s terms and policies, not by Shortlist.</li>
         <li>You can turn AI off in Profile → Settings. Matching, scoring, tailoring and autofill all work without it.</li>

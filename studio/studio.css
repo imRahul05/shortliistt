@@ -96,3 +96,5 @@ dialog h3{font-size:15px;margin-bottom:6px}
 .ai-out .why{font-size:11px;color:var(--ai);margin-top:2px;font-weight:500}
 .ai-out mark{background:var(--ai-soft);color:var(--ai);border-radius:3px;padding:0 2px}
 .st-sub.cap{color:var(--warn)}.st-sub.cap b{font-weight:600}
+.proof-out{margin:0 0 10px;background:var(--panel);box-shadow:var(--shadow)}
+.ai-out mark{text-decoration:none}

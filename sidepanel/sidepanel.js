@@ -6,7 +6,7 @@ import { templateLetter, defaultLetterMeta, relevantEntries } from '../lib/lette
 import { STATUSES, STATUS_LABEL, appKey, getApps, upsertApp, removeApp, dueFollowUps, agoText, toCSV } from '../lib/tracker.js';
 import { importGitHub, importLinkedIn, githubUsername, mergeList, KEYS, yearsFromWork, fmtYM, parseMonth } from '../lib/importers.js';
 import { parseResumeModel, modelSections } from '../lib/resume-model.js';
-import { aiAvailability, AI_LABEL, aiInsights, aiAnswer, aiCoverLetter, downloadModel, aiParseResume, aiJobRequirements } from '../lib/ai.js';
+import { aiAvailability, AI_LABEL, aiInsights, aiAnswer, aiCoverLetter, downloadModel, aiParseResume, aiJobRequirements, summarizeJob } from '../lib/ai.js';
 import { $, $$, toast, md, download, busy, scoreClass, scoreColor, ICON, MARK, fmtMonths, fmtMonth } from '../lib/ui.js';
 import { escapeHtml as esc, debounce } from '../lib/text.js';
 
@@ -63,11 +63,11 @@ async function refreshAI() {
   $('#aiRow').hidden = !canAI;
   $('#aiInsightsBtn').lastChild.textContent = aiOn() ? ' Generate AI insights' : ' Enable AI to get insights';
   $('#clAiBtn').hidden = $('#qBtn').hidden = !aiOn();
-  if (match) runAIRequirements();
+  if (match) runBrief().finally(runAIRequirements);
 }
 function aiSetupHelp() {
   if (!S.settings.useAI) return 'Off. Matching is rule-based and works fully without AI.';
-  if (aiOn()) return 'Chrome’s built-in AI (Gemini Nano) is ready: insights, resume parsing, rewrites and cover letters. It runs on this device and is free.';
+  if (aiOn()) return 'Chrome’s built-in AI (Gemini Nano) is ready: insights, resume parsing, job summaries, rewrites, proofreading and cover letters. It runs on this device and is free.';
   if (aiState === 'downloadable' || aiState === 'downloading') return 'Click “Enable AI” at the top to download Chrome’s built-in model once (about 22 GB free disk needed).';
   return 'Chrome’s built-in AI isn’t available here (desktop Chrome 138+ with enough memory). Everything else works without it.';
 }
@@ -138,7 +138,7 @@ function rescore() {
   renderMatch();
   renderTrackRow();
   addHistory({ url: job.url, title: job.title, company: job.company, score: match.score }).then(renderHistory);
-  runAIRequirements();
+  runBrief().finally(runAIRequirements);
   if (!$('#tab-apply').hidden) autoLetter();
   maybePending();
 }
@@ -207,6 +207,25 @@ $('#skillGroups').addEventListener('click', async e => {
 });
 
 /* AI layer: independent read of the job's requirements, checked against the resume text. */
+const briefCache = new Map();
+/** Key points of the job (Chrome Summarizer API, or the Prompt API as a fallback). Cached per job. */
+async function runBrief() {
+  const card = $('#cBrief');
+  if (!aiOn() || !jobA) { card.hidden = true; return; }
+  const key = job.url + '|' + jobA.text.length, out = $('#brief');
+  card.hidden = false;
+  let r = briefCache.get(key);
+  if (!r) {
+    out.innerHTML = '<span class="row muted"><span class="spinner"></span> Summarizing the job…</span>'; $('#briefSrc').textContent = '';
+    try { r = await summarizeJob(jobA, { onChunk: t => { if (job?.url + '|' + jobA?.text.length === key) out.innerHTML = md(t); } }); briefCache.set(key, r); }
+    catch (e) { out.innerHTML = `<p class="muted">Couldn’t summarize this job: ${esc(e.message)}</p>`; return; }
+    if (job?.url + '|' + jobA?.text.length !== key) return;
+  }
+  out.innerHTML = md(r.text);
+  $('#briefSrc').textContent = r.engine === 'summarizer' ? 'Summarizer' : '';
+  $('#briefSrc').title = r.engine === 'summarizer' ? 'Chrome’s built-in Summarizer API' : '';
+}
+
 async function runAIRequirements() {
   const card = $('#aiReqCard');
   if (!aiOn() || !jobA || !S.resume?.text) { card.hidden = true; return; }
