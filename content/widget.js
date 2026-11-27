@@ -9,7 +9,7 @@
     let lastH = '';
     const scan = () => {
       if (innerWidth < 320 || innerHeight < 240) return;
-      let job; try { job = __shortlistExtract(); } catch { return; }
+      let job; try { job = __shortlistExtract({ auto: true }); } catch { return; }
       if (!job?.ok || !job.confident) return;
       let h = 0; const k = job.title + job.description.slice(0, 2000); for (let i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) | 0;
       if (String(h) === lastH) return; lastH = String(h);
@@ -203,7 +203,9 @@
   }
 
   /* ---------- Application / sign-up form card (pages with a form but no job description) ---------- */
-  const ATS_HOST = /myworkdayjobs|workday|greenhouse|lever\.co|ashbyhq|icims|taleo|smartrecruiters|successfactors|jobvite|bamboohr|workable|recruitee|teamtailor|personio|jazzhr|applytojob|breezy|zohorecruit|naukri|indeed|linkedin|wellfound|instahyre|internshala|foundit|dice\.com|glassdoor/i;
+  // Application systems only: job boards (LinkedIn, Indeed, Naukri…) have login, messaging and settings forms that aren't applications.
+  const ATS_HOST = /myworkdayjobs|workday|greenhouse|lever\.co|ashbyhq|icims|taleo|smartrecruiters|successfactors|jobvite|bamboohr|workable|recruitee|teamtailor|personio|jazzhr|applytojob|breezy|zohorecruit/i;
+  const JOB_BOARD = /(^|\.)(linkedin\.com|indeed\.|naukri\.com|glassdoor\.|foundit\.in|monster\.|dice\.com|wellfound\.com|angel\.co|instahyre\.com|hirist\.|iimjobs\.com|cutshort\.io|internshala\.com|shine\.com|apna\.co)/i;
   const JOBISH_URL = /apply|application|career|jobs?\b|job[-_/]|position|opening|vacanc|candidate|requisition|recruit/i;
   let form = null, formSig = '', formNote = '', formTimer = null, lastFormScan = 0;
   const KIND_TEXT = { signup: 'Create-account form', signin: 'Sign-in form', application: 'Application form' };
@@ -244,6 +246,7 @@
   }
   async function runForm() {
     if (!alive || lastHash || !settings.widget) return;
+    if (JOB_BOARD.test(location.hostname)) return; // search boxes, login and messaging on job boards aren't applications (use the side panel's Apply tab)
     const inputs = document.querySelectorAll('input:not([type=hidden]), textarea, select').length;
     const hasKey = document.querySelector('input[type=email], input[type=password], input[type=file], [data-automation-id*="email" i], [data-automation-id*="password" i]');
     if (!hasKey && inputs < 3) { if (form) { form = null; hide(); } return; }
@@ -263,7 +266,7 @@
   const scheduleForm = ms => { clearTimeout(formTimer); formTimer = setTimeout(runForm, ms); };
 
   /* ---------- detection loop ---------- */
-  let lastJob = null, aiHtml = '';
+  let lastJob = null, aiHtml = '', frameCard = false; // frameCard: the card shows a job found in an embedded frame
   const mdLite = t => {
     let html = '', list = false;
     for (const l of esc(t.trim()).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').split('\n')) {
@@ -276,10 +279,11 @@
   };
   async function run() {
     if (!alive) return;
-    if (location.href !== lastUrl) { lastUrl = location.href; lastHash = ''; settleUntil = Date.now() + 15000; }
+    if (location.href !== lastUrl) { if (lastUrl) frameCard = false; lastUrl = location.href; lastHash = ''; settleUntil = Date.now() + 15000; }
     let job;
-    try { job = __shortlistExtract(); } catch { return; }
-    if (!job?.ok || !job.confident) { if (lastHash) { lastHash = ''; hide(); send({ type: 'no-job' }); } scheduleForm(400); return; }
+    try { job = __shortlistExtract({ auto: true }); } catch { return; }
+    // No job here (e.g. LinkedIn switched from a job to the feed): remove a job card that is still showing.
+    if (!job?.ok || !job.confident) { if (lastHash || (state && !form && !frameCard)) { lastHash = ''; hide(); send({ type: 'no-job' }); } scheduleForm(400); return; }
     const h = hash(job.title + '|' + job.description.slice(0, 3000));
     if (h === lastHash) return;
     lastHash = h; lastJob = job; aiHtml = ''; form = null; formSig = '';
@@ -296,7 +300,7 @@
   // A job detected inside an iframe of this page.
   chrome.runtime.onMessage.addListener(msg => {
     if (msg?.type !== 'render' || !alive || lastHash) return;
-    lastJob = msg.job; render(msg.result, msg.job);
+    lastJob = msg.job; frameCard = true; render(msg.result, msg.job);
   });
   chrome.storage.onChanged.addListener((ch, area) => {
     if (area !== 'local' || !alive) return;
