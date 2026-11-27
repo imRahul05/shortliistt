@@ -3,6 +3,7 @@ import { analyzeJob, matchJob, effectiveProfile, isOwnContent, findSkills, exper
 import { SKILLS, SKILL_BY_NAME } from '../lib/skills.js';
 import { extractResumeFile, cleanResumeText, stripRich } from '../lib/resume-parser.js';
 import { templateLetter, defaultLetterMeta, relevantEntries } from '../lib/letter.js';
+import { STATUSES, STATUS_LABEL, appKey, getApps, upsertApp, removeApp, dueFollowUps, agoText, toCSV } from '../lib/tracker.js';
 import { importGitHub, importLinkedIn, githubUsername, mergeList, KEYS, yearsFromWork, fmtYM, parseMonth } from '../lib/importers.js';
 import { parseResumeModel, modelSections } from '../lib/resume-model.js';
 import { aiAvailability, AI_LABEL, aiInsights, aiAnswer, aiCoverLetter, downloadModel, aiParseResume, aiJobRequirements } from '../lib/ai.js';
@@ -38,6 +39,7 @@ function showTab(name) {
   $$('.seg button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   $$('main > section').forEach(s => (s.hidden = s.id !== `tab-${name}`));
   if (name === 'apply') { autoLetter(); refreshForm(); }
+  if (name === 'tracker') renderTracker();
 }
 $$('.seg button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
 document.addEventListener('click', e => {
@@ -134,6 +136,7 @@ function rescore() {
   match = matchJob(jobA, { text: S.resume.text, sections: S.resume.sections, profile: prof() });
   showState('job');
   renderMatch();
+  renderTrackRow();
   addHistory({ url: job.url, title: job.title, company: job.company, score: match.score }).then(renderHistory);
   runAIRequirements();
   if (!$('#tab-apply').hidden) autoLetter();
@@ -256,7 +259,7 @@ async function runInsights() {
   if (!aiOn() && !(await enableAI())) return;
   const btn = $('#aiInsightsBtn'), out = $('#aiInsights');
   busy(btn, true, 'Thinking…'); $('#aiCard').hidden = false; out.innerHTML = '<span class="muted">Reading the job and your resume…</span>';
-  try { await aiInsights({ jobA, resumeText: S.resume.text, match }, { onChunk: t => (out.innerHTML = md(t)) }); }
+  try { await aiInsights({ jobA, resumeText: S.resume.text, match, profile: S.profile }, { onChunk: t => (out.innerHTML = md(t)) }); }
   catch (e) { out.innerHTML = `<p class="muted">AI error: ${esc(e.message)}</p>`; }
   busy(btn, false);
 }
@@ -309,6 +312,7 @@ $('#autofillBtn').addEventListener('click', async () => {
     if (r.filled) bits.push(`${r.filled} field${r.filled === 1 ? '' : 's'} filled`);
     if (r.passwordFilled) bits.push(r.generated ? 'strong password created and saved below' : 'saved password filled');
     if (r.attached) bits.push('resume attached');
+    if (r.photo) bits.push('photo attached');
     let html = esc(bits.length ? bits.join(' · ') : 'Nothing new to fill — the fields already have values') + '.';
     if (r.terms) html += ' <b>Tick the terms/consent checkbox on the page yourself.</b>';
     const prim = r.actions?.find(a => a.primary);
@@ -362,7 +366,7 @@ $('#qBtn').addEventListener('click', async () => {
   const btn = $('#qBtn'), out = $('#qOut');
   if (!aiOn()) { out.value = `Situation:\nWhat I did:\nResult (numbers):\nWhy it matters for ${jobA?.company || 'this role'}:`; toast('AI unavailable — here is a structure to fill'); return; }
   busy(btn, true, 'Drafting…');
-  try { await aiAnswer({ jobA, resumeText: S.resume.text, question: q }, { onChunk: t => (out.value = t) }); }
+  try { await aiAnswer({ jobA, resumeText: S.resume.text, question: q, profile: S.profile, match }, { onChunk: t => (out.value = t) }); }
   catch (e) { out.value = 'AI error: ' + e.message; }
   busy(btn, false);
 });
@@ -690,6 +694,8 @@ chrome.runtime.onMessage.addListener(msg => {
   }
 });
 chrome.storage.onChanged.addListener((ch, area) => {
+  if (area === 'session' && ch.pendingAction?.newValue) { maybePending(); return; }
+  if (area === 'local' && ch.applications) { renderTracker(); renderTrackRow(); }
   if (area !== 'local') return;
   if (ch.profile && JSON.stringify(ch.profile.newValue) !== JSON.stringify(S.profile)) { S.profile = ch.profile.newValue || {}; fillProfileForm(); renderResume(); }
 });
@@ -702,6 +708,100 @@ async function maybePending() {
   if (pendingAction === 'ai-insights') runInsights();
   if (pendingAction === 'cover-letter') { showTab('apply'); }
 }
+
+/* ---------------- Tracker ---------------- */
+async function renderTrackRow() {
+  if (!job) return;
+  const app = (await getApps())[appKey(job.url)];
+  $('#trackStatus').value = app?.status || '';
+  $('#trackApplied').hidden = !!app && app.status !== 'saved';
+  $('#trackWhen').textContent = app?.appliedAt ? `applied ${agoText(app.appliedAt)}` : '';
+}
+$('#trackStatus').addEventListener('change', async e => {
+  if (!job) return;
+  if (!e.target.value) await removeApp(appKey(job.url)); else await upsertApp(job, { status: e.target.value, score: match?.score });
+  renderTrackRow();
+});
+$('#trackApplied').addEventListener('click', async () => {
+  if (!job) return;
+  await upsertApp(job, { status: 'applied', score: match?.score });
+  renderTrackRow(); toast('Tracked — we’ll remind you if there’s no reply in a week');
+});
+
+async function renderTracker() {
+  const apps = await getApps();
+  const list = Object.values(apps);
+  const due = dueFollowUps(apps);
+  $('#trackDot').hidden = !due.length;
+  const count = s => list.filter(a => a.status === s).length;
+  $('#trackStats').innerHTML = [['Applied', list.filter(a => a.appliedAt).length], ['Interviewing', count('interview')], ['Offers', count('offer')], ['Waiting 7d+', due.length]]
+    .map(([l, n]) => `<div><b>${n}</b><span>${l}</span></div>`).join('');
+  $('#followCard').hidden = !due.length;
+  $('#followCount').textContent = due.length || '';
+  $('#followList').innerHTML = due.map(a => `<div class="app" data-k="${esc(a.key)}"><div class="app-top"><div class="app-main"><div class="app-title"><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title || a.url)}</a></div><div class="app-sub">${esc(a.company || '')}${a.company ? ' · ' : ''}applied ${agoText(a.appliedAt)}</div></div></div>
+    <div class="fu-btns"><button class="btn small" data-fu="interview">Got an interview</button><button class="btn small" data-fu="rejected">Rejected</button><button class="btn small" data-fu="ghosted">No response</button><button class="btn small ghost" data-fu="snooze">Remind me in a week</button></div></div>`).join('');
+  const f = $('#appFilter').value;
+  const rows = list.filter(a => !f || a.status === f).sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
+  $('#appCount').textContent = list.length || '';
+  $('#appList').innerHTML = rows.map(a => `<div class="app" data-k="${esc(a.key)}"><div class="app-top"><div class="app-main">
+      <div class="app-title"><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title || a.url)}</a></div>
+      <div class="app-sub"><span class="pill-s ${a.status}">${esc(STATUS_LABEL[a.status] || a.status)}</span> ${esc(a.company || '')}${a.appliedAt ? ` · applied ${agoText(a.appliedAt)}` : ''}${a.auto ? ' · auto-detected' : ''}${a.score != null ? ` · ${a.score}% match` : ''}</div></div>
+      <select data-st>${STATUSES.map(([v, l]) => `<option value="${v}" ${v === a.status ? 'selected' : ''}>${l}</option>`).join('')}</select><button class="x" data-del title="Remove">×</button></div></div>`).join('')
+    || '<p class="muted small" style="margin:0">No applications yet. Open a job and click “Mark as applied”.</p>';
+}
+$('#appFilter').addEventListener('change', renderTracker);
+$('#tab-tracker').addEventListener('change', async e => {
+  const sel = e.target.closest('select[data-st]'); if (!sel) return;
+  const a = (await getApps())[sel.closest('.app').dataset.k]; if (!a) return;
+  await upsertApp(a, { status: sel.value }); renderTracker(); renderTrackRow();
+});
+$('#tab-tracker').addEventListener('click', async e => {
+  const row = e.target.closest('.app'); if (!row) return;
+  const a = (await getApps())[row.dataset.k]; if (!a) return;
+  if (e.target.closest('[data-del]')) { if (confirm(`Remove “${a.title || a.url}” from the tracker?`)) { await removeApp(a.key); renderTracker(); renderTrackRow(); } return; }
+  const fu = e.target.closest('[data-fu]')?.dataset.fu; if (!fu) return;
+  if (fu === 'snooze') await upsertApp(a, { snoozeUntil: Date.now() + 7 * 864e5 });
+  else await upsertApp(a, { status: fu });
+  renderTracker(); renderTrackRow();
+});
+$('#appCsv').addEventListener('click', async () => download(`shortlist-applications-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(await getApps()), 'text/csv'));
+
+/* ---------------- Photo (for forms that ask for one) ---------------- */
+async function renderPhoto() {
+  const { photo } = await chrome.storage.local.get('photo');
+  $('#photoPrev').style.backgroundImage = photo?.dataURL ? `url("${photo.dataURL}")` : '';
+  $('#photoPrev').textContent = photo?.dataURL ? '' : '👤';
+  $('#photoDel').hidden = !photo?.dataURL;
+}
+$('#photoIn').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const img = await createImageBitmap(f);
+    const k = Math.min(1, 800 / Math.max(img.width, img.height));
+    const c = Object.assign(document.createElement('canvas'), { width: Math.round(img.width * k), height: Math.round(img.height * k) });
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    await save({ photo: { dataURL: c.toDataURL('image/jpeg', 0.9), name: (f.name.replace(/\.[^.]+$/, '') || 'photo') + '.jpg' } });
+    renderPhoto(); toast('Photo saved');
+  } catch { toast('Could not read that image'); }
+});
+$('#photoDel').addEventListener('click', async () => { await chrome.storage.local.remove('photo'); renderPhoto(); });
+
+/* ---------------- Backup & restore ---------------- */
+$('#bkExport').addEventListener('click', async () => {
+  const data = await chrome.storage.local.get(null);
+  download(`shortlist-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ app: 'shortlist', version: chrome.runtime.getManifest().version, exportedAt: new Date().toISOString(), data }), 'application/json');
+  toast('Backup downloaded — it includes saved logins, keep it private');
+});
+$('#bkImport').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const j = JSON.parse(await f.text());
+    if (j?.app !== 'shortlist' || typeof j.data !== 'object') throw new Error('Not a Shortlist backup file');
+    if (!confirm(`Restore the backup from ${new Date(j.exportedAt).toLocaleString()}? This replaces the data in this browser.`)) return;
+    await chrome.storage.local.clear(); await chrome.storage.local.set(j.data);
+    location.reload();
+  } catch (err) { toast(err.message || 'Could not read that file', 4000); }
+});
 
 /* ---------------- Migrations for data saved by older versions ---------------- */
 async function migrate() {
@@ -723,6 +823,9 @@ await migrate();
 fillProfileForm();
 renderResume();
 renderStructured();
+renderPhoto();
+renderTracker();
+if (location.hash === '#tracker') showTab('tracker');
 $('#setWidget').checked = S.settings.widget !== false;
 $('#setPos').value = S.settings.widgetPos || 'br';
 $('#setAI').checked = S.settings.useAI;

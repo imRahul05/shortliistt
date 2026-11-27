@@ -16,6 +16,7 @@
   <nav class="seg" role="tablist">
     <button data-tab="match" class="active">Match</button>
     <button data-tab="apply">Apply</button>
+    <button data-tab="tracker">Tracker<span class="tab-dot" id="trackDot" hidden></span></button>
     <button data-tab="profile">Profile</button>
   </nav>
 </div>
@@ -65,6 +66,12 @@
         </div>
         <div class="meter"><i id="meter"></i></div>
         <div id="bars" class="bars"></div>
+        <div class="track-row" id="trackRow">
+          <span class="muted small">Application</span>
+          <select id="trackStatus"><option value="">Not tracked</option><option value="saved">Saved</option><option value="applied">Applied</option><option value="interview">Interviewing</option><option value="offer">Offer</option><option value="rejected">Rejected</option><option value="ghosted">No response</option></select>
+          <button class="btn small" id="trackApplied">✓ Mark as applied</button>
+          <span class="muted small" id="trackWhen"></span>
+        </div>
         <div class="row ai-row" id="aiRow"><button id="aiInsightsBtn" class="btn ai block" data-icon-l="spark">Generate AI insights</button></div>
       </div>
 
@@ -144,6 +151,24 @@
     </div>
   </section>
 
+  <!-- ============ TRACKER ============ -->
+  <section id="tab-tracker" hidden>
+    <div class="card" id="statsCard">
+      <div class="stats" id="trackStats"></div>
+    </div>
+    <div class="card ai-panel" id="followCard" hidden>
+      <h3>Follow up <span class="count" id="followCount"></span></h3>
+      <p class="muted small lead">Applied a week ago or more and still marked “Applied”. Heard back?</p>
+      <div id="followList"></div>
+    </div>
+    <div class="card">
+      <h3>Applications <span class="count" id="appCount"></span></h3>
+      <div class="row" style="margin-bottom:10px"><select id="appFilter" style="width:auto"><option value="">All</option><option value="saved">Saved</option><option value="applied">Applied</option><option value="interview">Interviewing</option><option value="offer">Offer</option><option value="rejected">Rejected</option><option value="ghosted">No response</option></select><button class="btn small ghost" id="appCsv" data-icon-l="download">Export CSV</button></div>
+      <div id="appList"></div>
+      <p class="muted small" style="margin:10px 0 0">Jobs are added when you click “Mark as applied”, or automatically when a site shows “Thank you for applying”. Everything stays in this browser.</p>
+    </div>
+  </section>
+
   <!-- ============ PROFILE ============ -->
   <section id="tab-profile" hidden>
     <div class="card">
@@ -204,6 +229,11 @@
     <div class="card">
       <h3>Details</h3>
       <form id="profileForm" autocomplete="off">
+        <div class="photo-row">
+          <div class="photo" id="photoPrev" aria-hidden="true"></div>
+          <div class="photo-main"><div class="imp-title">Photo</div><div class="muted small">Optional. Attached to forms that ask for a photo or headshot.</div>
+            <div class="row" style="margin-top:6px"><label class="btn small" for="photoIn">Upload</label><input type="file" id="photoIn" accept="image/png,image/jpeg,image/webp" hidden><button type="button" class="btn small ghost" id="photoDel" hidden>Remove</button></div></div>
+        </div>
         <label class="field">Full name<input type="text" name="name"></label>
         <div class="grid2">
           <label class="field">Email<input type="email" name="email"></label>
@@ -242,6 +272,11 @@
     <div class="card">
       <h3>Privacy</h3>
       <p class="muted small lead">No accounts, keys or servers. Everything is stored in this browser only. AI features use Chrome’s built-in Gemini Nano, which runs on your device.</p>
+      <div class="backup">
+        <div class="imp-title">Backup &amp; restore</div>
+        <div class="muted small">Moving to a new version or computer? Export everything (resume, profile, tracker, drafts, saved logins) to a file, then import it.</div>
+        <div class="row" style="margin-top:8px"><button id="bkExport" class="btn small" data-icon-l="download">Export data</button><label class="btn small ghost" for="bkImport" data-icon-l="upload">Import data</label><input type="file" id="bkImport" accept="application/json,.json" hidden></div>
+      </div>
       <div class="row"><button id="wipe" class="btn small">Delete all my data</button><a class="btn small ghost" href="https://shortliistt.vercel.app/privacy" target="_blank" rel="noopener">Privacy policy</a></div>
     </div>
   </section>

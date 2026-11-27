@@ -78,6 +78,10 @@
     .pill .mark{width:20px;height:20px;border-radius:99px}
     .dot{width:7px;height:7px;border-radius:99px}
     .muted{color:var(--mut)}
+    .track{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;flex-wrap:wrap}
+    .track .ok{color:var(--good);font-weight:600}
+    .lnk{all:unset;cursor:pointer;font-weight:600;color:var(--fg);text-decoration:underline;text-underline-offset:2px}
+    .toast{width:292px;margin-top:8px;padding:10px 12px;border-radius:12px;background:var(--bg);border:1px solid var(--line);box-shadow:var(--shadow);font-size:12.5px;display:flex;gap:8px;align-items:center}
     .note{margin-top:10px;font-size:12px;line-height:1.45;color:var(--fg);background:var(--soft);border-radius:8px;padding:8px 10px}
     .note b{font-weight:600;color:var(--warn)}
     .btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:12px}
@@ -103,6 +107,8 @@
     spark: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>',
     arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
   };
+  const STATUS = { saved: 'Saved', applied: 'Applied', interview: 'Interviewing', offer: 'Offer', rejected: 'Rejected', ghosted: 'No response' };
+  const ago = t => { const d = Math.max(0, Math.floor((Date.now() - t) / 864e5)); return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`; };
   const tone = s => (s >= 75 ? ['var(--good)', 'var(--goodbg)'] : s >= 55 ? ['var(--warn)', 'var(--warnbg)'] : ['var(--bad)', 'var(--badbg)']);
 
   function place() {
@@ -145,6 +151,7 @@
         ${r.mustTotal ? `<div class="row"><span>Must-have skills</span><b>${r.mustHave}/${r.mustTotal}</b></div>` : ''}
         ${missing.length ? `<div class="tags">${missing.map(m => `<span class="tag">${esc(m)}</span>`).join('')}${r.missing.length > 4 ? `<span class="tag" style="background:var(--soft);color:var(--mut)">+${r.missing.length - 4}</span>` : ''}</div>` : `<div class="row"><span>No must-have skills missing</span></div>`}
         <div class="btns"><button class="btn ai" data-a="ai">${ICON.spark} AI insights</button><button class="btn" data-a="open">Full report ${ICON.arrow}</button></div>
+        <div class="track">${r.app && r.app.status !== 'saved' ? `<span class="ok">✓ ${r.app.status === 'applied' ? `Applied ${r.app.appliedAt ? ago(r.app.appliedAt) : ''}` : esc(STATUS[r.app.status] || r.app.status)}</span><button class="lnk" data-a="open">Update</button>` : `<button class="lnk" data-a="applied">✓ Mark as applied</button><span class="muted">tracks it &amp; reminds you in a week</span>`}</div>
         ${aiHtml ? `<div class="ai-box">${aiHtml}</div>` : ''}
       </div></div>`;
   }
@@ -158,8 +165,16 @@
     if (a === 'min') { sessionStorage.setItem('shortlist-min', '1'); render(state, lastJob); }
     if (a === 'expand') { sessionStorage.removeItem('shortlist-min'); render(state, lastJob); }
     if (a === 'open') send({ type: 'open-panel' });
-    if (a === 'ai-panel') send({ type: 'open-panel-with', action: 'ai-insights' });
     if (a === 'ai') runAI();
+    if (a === 'applied' && lastJob) {
+      const app = await send({ type: 'track', job: lastJob, patch: { status: 'applied' } });
+      if (app && !app.error) { state = { ...state, app: { status: app.status, appliedAt: app.appliedAt } }; render(state, lastJob); }
+    }
+    if (a === 'undo-applied' && lastJob) {
+      await send({ type: 'track', job: lastJob, patch: { status: 'saved', appliedAt: null } });
+      if (state) state = { ...state, app: null };
+      confirmNote = ''; render(state, lastJob); renderConfirm();
+    }
     if (a === 'fill') runAutofill();
     if (a === 'act') {
       const act = form?.actions?.find(x => x.key === el.dataset.key);
@@ -171,35 +186,13 @@
     }
   });
 
-  /* ---------- AI insights (streamed from the extension's offscreen AI page) ---------- */
-  const setAI = html => {
-    aiHtml = html;
-    const box = root.querySelector('.ai-box');
-    if (box) box.innerHTML = html; else render(state, lastJob);
-  };
-  async function runAI() {
-    const h = lastHash;
-    setAI('<span class="spin"></span>Starting AI…');
-    const ok = await send({ type: 'ensure-offscreen' });
-    if (h !== lastHash) return;
-    if (!ok?.ok) return setAI(`AI couldn’t start (${esc(ok?.error || 'unknown error')}). <a href="#" data-a="ai-panel">Open insights in the Shortlist panel</a>.`);
-    setAI('<span class="spin"></span>Reading the job and your resume…');
-    let port;
-    try { port = chrome.runtime.connect({ name: 'shortlist-ai' }); } catch { alive = false; return; }
-    port.onMessage.addListener(m => {
-      if (h !== lastHash) { port.disconnect(); return; }
-      if (m.chunk) setAI(mdLite(m.chunk));
-      else if (m.done) { setAI(mdLite(m.text || '')); port.disconnect(); }
-      else if (m.error) {
-        port.disconnect();
-        if (m.error === 'downloadable' || m.error === 'downloading') setAI('Chrome’s built-in AI needs a one-time download. <a href="#" data-a="ai-panel">Enable it in Shortlist</a>.');
-        else if (m.error === 'noresume') setAI('Add your resume in Shortlist first. <a href="#" data-a="open">Open Shortlist</a>.');
-        else if (m.error === 'unsupported' || m.error === 'unavailable') setAI('Built-in AI isn’t available to the page card in this Chrome. <a href="#" data-a="ai-panel">Open insights in the Shortlist panel</a>.');
-        else setAI(`AI error: ${esc(m.message || m.error)}. <a href="#" data-a="ai-panel">Try in the Shortlist panel</a>.`);
-      }
-    });
-    port.onDisconnect.addListener(() => { if (/spin/.test(aiHtml) && h === lastHash) setAI('AI stopped unexpectedly. <a href="#" data-a="ai-panel">Try in the Shortlist panel</a>.'); });
-    port.postMessage({ type: 'insights', job: lastJob });
+  /* ---------- AI insights: run in the side panel, where Chrome's built-in AI works reliably ---------- */
+  function runAI() {
+    // Must be sent inside the click (user gesture) so Chrome lets the background open the side panel.
+    send({ type: 'open-panel-with', action: 'ai-insights' });
+    aiHtml = 'Opening AI insights in the Shortlist panel →';
+    render(state, lastJob);
+    setTimeout(() => { if (/Opening AI insights/.test(aiHtml)) { aiHtml = ''; render(state, lastJob); } }, 2500);
   }
 
   /* ---------- Application / sign-up form card (pages with a form but no job description) ---------- */
@@ -237,6 +230,7 @@
     if (r.filled) bits.push(`${r.filled} field${r.filled === 1 ? '' : 's'} filled`);
     if (r.passwordFilled) bits.push(r.generated ? 'strong password created & saved' : 'saved password filled');
     if (r.attached) bits.push('resume attached');
+    if (r.photo) bits.push('photo attached');
     formNote = (bits.length ? bits.join(' · ') : 'Nothing to fill — fields already have values') + '.';
     if (r.noEmail) formNote += ' Add your email in Shortlist → Profile.';
     if (r.terms) formNote += ' <b>Tick the terms checkbox yourself.</b>';
@@ -265,6 +259,36 @@
   }
   const scheduleForm = ms => { clearTimeout(formTimer); formTimer = setTimeout(runForm, ms); };
 
+  /* ---------- "Thank you for applying" detection -> mark the job as applied ---------- */
+  const CONFIRM_RE = /(thank(s| you) for (applying|your (application|interest))|your application (was|has been) (sent|submitted|received)|application (submitted|received|sent)( successfully)?|we('|’)ve received your application|you('|’)ve applied|successfully applied)/i;
+  let confirmedUrl = '', confirmNote = '', lastConfirmCheck = 0;
+  function renderConfirm() {
+    let t = root.getElementById('confirm');
+    if (!confirmNote) { t?.remove(); if (!state && !form) hide(); return; }
+    mount();
+    if (!t) { t = document.createElement('div'); t.id = 'confirm'; t.className = 'toast'; W.after(t); }
+    t.innerHTML = confirmNote;
+  }
+  async function checkConfirmation() {
+    if (!alive || confirmedUrl === location.href || Date.now() - lastConfirmCheck < 2500) return;
+    if (!(ATS_HOST.test(location.hostname) || JOB_BOARD.test(location.hostname) || JOBISH_URL.test(location.pathname + location.search))) return;
+    lastConfirmCheck = Date.now();
+    // Look at headings, dialogs and short status messages only — not the whole page.
+    const spots = [...document.querySelectorAll('h1,h2,h3,[role=dialog],[role=alert],[role=status],[aria-live],.artdeco-modal,[data-automation-id*="ongratulations" i],[class*="confirmation" i],[class*="success" i]')].slice(0, 60);
+    const hit = spots.some(el => { const t = (el.innerText || '').slice(0, 400); return t && CONFIRM_RE.test(t); });
+    if (!hit) return;
+    confirmedUrl = location.href;
+    const r = await send({ type: 'applied-confirmation', job: lastHash ? lastJob : null });
+    if (r?.ok) {
+      const a = r.app;
+      confirmNote = `<span class="ok" style="color:var(--good);font-weight:600">✓ Marked as applied</span><span class="muted" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc([a.title, a.company].filter(Boolean).join(' · '))}</span><button class="lnk" data-a="undo-applied">Undo</button>`;
+      if (lastHash && state) { state = { ...state, app: { status: 'applied', appliedAt: a.appliedAt } }; render(state, lastJob); }
+      if (!lastJob) lastJob = a;
+      renderConfirm();
+      setTimeout(() => { if (confirmNote) { confirmNote = ''; renderConfirm(); } }, 12000);
+    }
+  }
+
   /* ---------- detection loop ---------- */
   let lastJob = null, aiHtml = '', frameCard = false; // frameCard: the card shows a job found in an embedded frame
   const mdLite = t => {
@@ -279,6 +303,7 @@
   };
   async function run() {
     if (!alive) return;
+    setTimeout(checkConfirmation, 800);
     if (location.href !== lastUrl) { if (lastUrl) frameCard = false; lastUrl = location.href; lastHash = ''; settleUntil = Date.now() + 15000; }
     let job;
     try { job = __shortlistExtract({ auto: true }); } catch { return; }
@@ -296,7 +321,7 @@
 
   chrome.storage.local.get('settings', ({ settings: s }) => { settings = { ...settings, ...(s || {}) }; schedule(700); });
   setInterval(() => { if (alive && location.href !== lastUrl) { formSig = ''; formNote = ''; schedule(500); } }, 700);
-  new MutationObserver(() => { if (Date.now() < settleUntil) schedule(900); else if (form || !lastHash) scheduleForm(1500); }).observe(document.documentElement, { childList: true, subtree: true });
+  new MutationObserver(() => { if (Date.now() < settleUntil) schedule(900); else if (form || !lastHash) scheduleForm(1500); setTimeout(checkConfirmation, 600); }).observe(document.documentElement, { childList: true, subtree: true });
   // A job detected inside an iframe of this page.
   chrome.runtime.onMessage.addListener(msg => {
     if (msg?.type !== 'render' || !alive || lastHash) return;

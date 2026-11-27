@@ -5,7 +5,7 @@ body{min-width:320px;background:var(--bg)}
 .mark svg{width:13px;height:13px}
 #aiPill{max-width:60%;font:inherit;font-size:11.5px}
 .tabs-wrap{padding:0 16px 12px;position:sticky;top:46px;z-index:5;background:var(--bg)}
-.seg{display:grid;grid-template-columns:repeat(3,1fr);padding:3px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);padding:3px;border-radius:10px;background:var(--panel-2);border:1px solid var(--line)}
 .seg button{border:0;background:none;height:28px;border-radius:7px;font:inherit;font-weight:500;color:var(--muted);cursor:pointer;transition:background .12s,color .12s}
 .seg button:hover{color:var(--text)}
 .seg button.active{background:var(--panel);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--line)}
@@ -112,6 +112,30 @@ main{padding:0 16px 24px}
 .st-item .x:hover{color:var(--bad)}
 .st-src{font-size:11.5px;color:var(--muted);margin-bottom:8px}
 .chip .src{font-size:9.5px;font-weight:600;color:var(--muted);letter-spacing:.04em}
+.tab-dot{display:inline-block;width:6px;height:6px;border-radius:99px;background:var(--ai);margin-left:5px;vertical-align:2px}
+.track-row{display:flex;align-items:center;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);flex-wrap:wrap}
+.track-row select{width:auto;height:28px;padding:0 8px;font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center}
+.stats div{background:var(--panel-2);border-radius:8px;padding:8px 4px}
+.stats b{display:block;font-size:20px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stats span{font-size:11px;color:var(--muted)}
+.app{padding:9px 0;border-top:1px solid var(--line)}
+.app:first-child{border-top:0;padding-top:0}
+.app-top{display:flex;gap:8px;align-items:flex-start}
+.app-main{flex:1;min-width:0}
+.app-title{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app-title a{color:var(--text);text-decoration:none}
+.app-title a:hover{text-decoration:underline}
+.app-sub{font-size:11.5px;color:var(--muted)}
+.app select{width:auto;height:26px;padding:0 6px;font-size:11.5px}
+.app .x{all:unset;cursor:pointer;color:var(--faint);font-size:15px;line-height:1;padding:2px}
+.app .x:hover{color:var(--bad)}
+.fu-btns{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+.pill-s{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:99px;background:var(--panel-2);color:var(--muted)}
+.pill-s.applied{background:var(--info-soft);color:var(--info)}.pill-s.interview{background:var(--warn-soft);color:var(--warn)}.pill-s.offer{background:var(--good-soft);color:var(--good)}.pill-s.rejected,.pill-s.ghosted{background:var(--bad-soft);color:var(--bad)}
+.photo-row{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.photo{width:56px;height:56px;border-radius:50%;background:var(--panel-2) center/cover no-repeat;border:1px solid var(--line);flex:none;display:grid;place-items:center;color:var(--faint);font-size:20px}
+.backup{padding:10px 0 12px;margin-bottom:10px;border-bottom:1px solid var(--line)}
 .linkish{all:unset;cursor:pointer;color:var(--bad);text-decoration:underline;text-underline-offset:2px}
 
 /* profile */
