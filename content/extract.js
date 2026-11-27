@@ -55,6 +55,48 @@ var __shortlistExtract = __shortlistExtract || (() => {
     return { title: htmlToText(j.title || ''), company: typeof org === 'string' ? org : org?.name || '', location: loc || (j.jobLocationType === 'TELECOMMUTE' ? 'Remote' : ''), description: htmlToText(String(j.description)) + extra, source: 'structured data' };
   }
 
+  // 0) Known platforms: on these hosts only real job-posting URLs can be jobs. Feed, profiles, messaging,
+  //    company pages, search without a selected job… are never scored, whatever text they contain.
+  //    [host, job-page pattern tested against path + query + hash]
+  const PLATFORMS = [
+    [/(^|\.)linkedin\.com$/, /\/jobs\/view\/\d+|[?&]currentJobId=\d+/i],
+    [/(^|\.)indeed\./, /\/viewjob|\/rc\/clk|\/pagead\/clk|[?&](vjk|jk)=[\w-]+/i],
+    [/(^|\.)naukri\.com$/, /\/job-listings-/i],
+    [/(^|\.)glassdoor\./, /\/job-listing\/|[?&]jl=\d+|\/partner\/joblisting/i],
+    [/myworkdayjobs\.com$|\.workday\.com$/, /\/job\/|\/details\//i],
+    [/greenhouse\.io$/, /\/jobs\/\d+|[?&]gh_jid=\d+|\/embed\/job_app/i], // incl. boards embedded on company sites
+    [/(^|\.)lever\.co$/, /^\/[^/]+\/[0-9a-f-]{36}|\/embed\//i],
+    [/ashbyhq\.com$/, /^\/[^/]+\/[0-9a-f-]{36}/i],
+    [/smartrecruiters\.com$/, /^\/[^/]+\/\d{6,}/],
+    [/(^|\.)(wellfound\.com|angel\.co)$/, /\/jobs?\/\d+/i],
+    [/(^|\.)dice\.com$/, /\/job-detail\//i],
+    [/(^|\.)(foundit\.in|monster\.[a-z.]+)$/, /\/job\/|job-listings|[?&]jobid=/i],
+    [/(^|\.)(instahyre\.com)$/, /\/job-\d+/i],
+    [/(^|\.)(hirist\.tech|hirist\.com|iimjobs\.com|updazz\.com)$/, /\/j\//i],
+    [/(^|\.)cutshort\.io$/, /\/job\//i],
+    [/(^|\.)amazon\.jobs$/, /\/jobs\/\d+/i],
+    [/workable\.com$/, /\/j\/[0-9A-F]+/i],
+    [/bamboohr\.com$/, /\/careers\/\d+/i],
+    [/recruitee\.com$/, /\/o\//i],
+    [/teamtailor\.com$/, /\/jobs\/\d+/i],
+    [/jobs\.personio\./, /\/job\/\d+/i],
+    [/jobvite\.com$/, /\/job\//i],
+    [/icims\.com$/, /\/jobs\/\d+/i],
+    [/taleo\.net$/, /jobdetail|requisition/i],
+    [/successfactors|jobs\.sap\.com$/, /\/job\/|jobid|career_job_req_id/i],
+    [/zohorecruit/, /\/jobs?\//i],
+    [/(^|\.)internshala\.com$/, /\/(internship|job)\/detail\//i],
+    [/(^|\.)(shine\.com|apna\.co|hirect\.in)$/, /\/jobs?\/[^/?#]+/i],
+    [/(^|\.)(workatastartup\.com|ycombinator\.com)$/, /\/jobs\/\d+|\/companies\/[^/]+\/jobs\/[^/?#]+/i],
+    [/(^|\.)(welcometothejungle\.com|otta\.com)$/, /\/jobs\/[^/?#]+/i],
+  ];
+  /** 'job' | 'not-job' on a known platform, or null on any other site. */
+  function platformGate() {
+    const p = PLATFORMS.find(([h]) => h.test(location.hostname));
+    if (!p) return null;
+    return p[1].test(location.pathname + location.search + location.hash) ? 'job' : 'not-job';
+  }
+
   // 2) Known job sites
   const SITES = [
     { host: /linkedin\.com$/, name: 'LinkedIn',
@@ -180,11 +222,14 @@ var __shortlistExtract = __shortlistExtract || (() => {
     return applyBtn || (urlJobish && titleJobish) || (heads >= 2 && (urlJobish || titleJobish));
   }
 
-  return function extract() {
+  // opts.auto = called by the on-page card (automatic): ignore text selections, which only count on Re-scan.
+  return function extract(opts = {}) {
     if (!document.body) return { ok: false };
-    const sel = (window.getSelection?.().toString() || '').trim();
+    const sel = opts.auto ? '' : (window.getSelection?.().toString() || '').trim();
     let job = null;
     if (sel.length > 200) job = { title: txt('h1') || document.title, company: '', description: sel, source: 'your selection' };
+    const gate = platformGate();
+    if (!job && gate === 'not-job') return { ok: false, url: location.href, pageTitle: document.title, reason: 'not-job-page' };
     if (!job) job = fromJsonLd();
     const site = fromSite();
     if (site) {
