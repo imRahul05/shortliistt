@@ -30,6 +30,16 @@ const features = [
   { tag: 'AI', title: 'Built-in AI', body: 'Insights, rewrites and cover letters with Chrome’s built-in Gemini Nano. No key, no subscription. Off? Everything still works.', accent: 'text-coral' },
 ];
 
+/** What the optional AI layer adds — kept to one compact row under the features grid. */
+const aiPerks = [
+  ['Job insights', 'fit, strengths, gaps and what to do before applying'],
+  ['Cover letters', 'written from your resume and the job'],
+  ['Tailored bullets', 'missing keywords worked into your real experience — you review every change'],
+  ['Tailor automatically', 'one click in Resume Studio, plus bullets condensed to fit one page'],
+  ['Form answers', 'drafts for “Why this role?” and other application questions'],
+  ['Read and polish', 'summarize long job posts, proofread before you send'],
+];
+
 const steps = [
   ['Upload your resume', 'PDF, DOCX or TXT. Parsed in the browser.'],
   ['Open any job posting', 'A score card appears on the page.'],
@@ -108,6 +118,20 @@ export default async function Home() {
               <p className="mt-2 leading-relaxed text-dim">{f.body}</p>
             </div>
           ))}
+          <div className="bg-ink p-8 sm:col-span-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+              <h3 className="text-xl font-semibold tracking-tight">What the built-in AI can do</h3>
+              <span className="font-mono text-xs text-dim">Gemini Nano · free · optional</span>
+            </div>
+            <ul className="mt-6 grid gap-x-10 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+              {aiPerks.map(([t, d]) => (
+                <li key={t} className="flex gap-3 text-[15px] leading-relaxed">
+                  <span className="mt-[0.6em] size-1.5 shrink-0 rounded-full bg-coral" aria-hidden />
+                  <span><span className="font-medium">{t}</span> <span className="text-dim">— {d}</span></span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 
