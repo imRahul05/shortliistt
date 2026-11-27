@@ -68,11 +68,18 @@ async function refreshAI() {
 function aiSetupHelp() {
   if (!S.settings.useAI) return 'Off. Matching is rule-based and works fully without AI.';
   if (aiOn()) return 'Chrome’s built-in AI (Gemini Nano) is ready: insights, resume parsing, job summaries, rewrites, proofreading and cover letters. It runs on this device and is free.';
-  if (aiState === 'downloadable' || aiState === 'downloading') return 'Click “Enable AI” at the top to download Chrome’s built-in model once (about 22 GB free disk needed).';
+  if (aiState === 'downloadable' || aiState === 'downloading') return 'Click “Enable AI” at the top to let Chrome download its built-in model (Gemini Nano, about 4 GB, once; needs 22 GB free disk). Nothing downloads until you confirm.';
   return 'Chrome’s built-in AI isn’t available here (desktop Chrome 138+ with enough memory). Everything else works without it.';
+}
+/** Ask before Chrome downloads Gemini Nano (about 4 GB, once, shared by every site and extension). */
+async function confirmDownload() {
+  const dlg = $('#aiDlDlg');
+  dlg.showModal();
+  return new Promise(r => dlg.addEventListener('close', () => r(dlg.returnValue === 'yes'), { once: true }));
 }
 async function enableAI() {
   if (aiState !== 'downloadable') return false;
+  if (!(await confirmDownload())) return false;
   const t = $('#aiPill .t');
   try { await downloadModel(p => (t.textContent = `Downloading ${Math.round(p * 100)}%`)); toast('AI is ready'); }
   catch (e) { toast('Download failed: ' + e.message, 4000); }
@@ -209,22 +216,27 @@ $('#skillGroups').addEventListener('click', async e => {
 /* AI layer: independent read of the job's requirements, checked against the resume text. */
 const briefCache = new Map();
 /** Key points of the job (Chrome Summarizer API, or the Prompt API as a fallback). Cached per job. */
-async function runBrief() {
-  const card = $('#cBrief');
+/** Key points of the job, on click (Chrome Summarizer API, or the Prompt API as a fallback). Cached per job. */
+async function runBrief(force = false) {
+  const card = $('#cBrief'), btn = $('#briefBtn'), out = $('#brief');
   if (!aiOn() || !jobA) { card.hidden = true; return; }
-  const key = job.url + '|' + jobA.text.length, out = $('#brief');
+  const key = job.url + '|' + jobA.text.length;
   card.hidden = false;
   let r = briefCache.get(key);
+  if (!r && !force) { out.innerHTML = '<p class="muted" style="margin:0 0 8px">Key points of this posting: the role, must-haves, level and location.</p>'; btn.hidden = false; $('#briefSrc').textContent = ''; return; }
+  btn.hidden = true;
   if (!r) {
     out.innerHTML = '<span class="row muted"><span class="spinner"></span> Summarizing the job…</span>'; $('#briefSrc').textContent = '';
-    try { r = await summarizeJob(jobA, { onChunk: t => { if (job?.url + '|' + jobA?.text.length === key) out.innerHTML = md(t); } }); briefCache.set(key, r); }
-    catch (e) { out.innerHTML = `<p class="muted">Couldn’t summarize this job: ${esc(e.message)}</p>`; return; }
+    const t0 = performance.now();
+    try { r = await summarizeJob(jobA, { onChunk: t => { if (job?.url + '|' + jobA?.text.length === key) out.innerHTML = md(t); } }); r.ms = Math.round(performance.now() - t0); briefCache.set(key, r); }
+    catch (e) { out.innerHTML = `<p class="muted">Couldn’t summarize this job: ${esc(e.message)}</p>`; btn.hidden = false; return; }
     if (job?.url + '|' + jobA?.text.length !== key) return;
   }
   out.innerHTML = md(r.text);
-  $('#briefSrc').textContent = r.engine === 'summarizer' ? 'Summarizer' : '';
-  $('#briefSrc').title = r.engine === 'summarizer' ? 'Chrome’s built-in Summarizer API' : '';
+  $('#briefSrc').textContent = `${r.engine === 'summarizer' ? 'Summarizer' : 'AI'} · ${(r.ms / 1000).toFixed(1)}s`;
+  $('#briefSrc').title = r.engine === 'summarizer' ? 'Written by Chrome’s built-in Summarizer API' : 'Written by Chrome’s built-in Prompt API';
 }
+$('#briefBtn').addEventListener('click', () => runBrief(true));
 
 async function runAIRequirements() {
   const card = $('#aiReqCard');
@@ -846,6 +858,7 @@ renderStructured();
 renderPhoto();
 renderTracker();
 if (location.hash === '#tracker') showTab('tracker');
+if (location.hash === '#profile') showTab('profile');
 $('#setWidget').checked = S.settings.widget !== false;
 $('#setPos').value = S.settings.widgetPos || 'br';
 $('#setTheme').value = S.settings.theme || 'system';
@@ -854,3 +867,61 @@ renderHistory();
 await refreshAI();
 if (S.resume?.text && !S.resume.detected?.aiSkills && aiOn()) enhanceWithAI();
 scan();
+
+/* ---------------- Storage: what Shortlist keeps in this browser, and clearing it ---------------- */
+const fmtBytes = n => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
+const count = v => (Array.isArray(v) ? v.length : v && typeof v === 'object' ? Object.keys(v).length : 0);
+const STORE = [
+  { keys: ['resume'], label: 'Resume', note: 'file + parsed text' },
+  { keys: ['photo'], label: 'Profile photo', clear: 'Remove', reset: { photo: null } },
+  { keys: ['profile', 'profileData'], label: 'Profile & imports', note: 'LinkedIn / GitHub data' },
+  { keys: ['tailored'], label: 'Tailored resumes', clear: 'Clear', reset: { tailored: {} }, n: d => count(d.tailored) },
+  { keys: ['letters'], label: 'Cover letters', clear: 'Clear', reset: { letters: {} }, n: d => count(d.letters) },
+  { keys: ['history'], label: 'Job history', clear: 'Clear', reset: { history: [] }, n: d => count(d.history) },
+  { keys: ['applications'], label: 'Application tracker', clear: 'Clear', reset: { applications: {} }, n: d => count(d.applications), ask: 'Clear your application tracker? Statuses and follow-up reminders will be lost.' },
+  { keys: ['accounts'], label: 'Saved site logins', clear: 'Forget all', reset: { accounts: {} }, n: d => count(d.accounts), ask: 'Forget every saved job-site login? Make sure you know these passwords (or can reset them) first.' },
+];
+async function renderStorage() {
+  const all = STORE.flatMap(c => c.keys);
+  const [total, data, ...sizes] = await Promise.all([chrome.storage.local.getBytesInUse(null), chrome.storage.local.get(all), ...STORE.map(c => chrome.storage.local.getBytesInUse(c.keys))]);
+  const other = Math.max(0, total - sizes.reduce((a, b) => a + b, 0));
+  const rows = [...STORE.map((c, i) => ({ ...c, i, size: sizes[i] })), { label: 'Settings & other', size: other }];
+  const max = Math.max(1, ...rows.map(r => r.size));
+  $('#stTotal').textContent = fmtBytes(total);
+  $('#stRows').innerHTML = rows.map(r => {
+    const n = r.n?.(data);
+    const sub = [n != null ? `${n} item${n === 1 ? '' : 's'}` : '', r.note || ''].filter(Boolean).join(' · ');
+    return `<div class="st-row"><div class="st-name"><span>${r.label}</span>${sub ? `<span class="muted">${sub}</span>` : ''}</div>
+      <div class="st-bar"><i style="width:${r.size ? Math.max(2, (r.size / max) * 100) : 0}%"></i></div><span class="st-size">${r.size ? fmtBytes(r.size) : '–'}</span>
+      ${r.clear ? `<button class="btn small ghost" data-st="${r.i}" ${r.size > 2 && (n == null ? data[r.keys[0]] : n) ? '' : 'disabled'}>${r.clear}</button>` : '<span class="st-gap"></span>'}</div>`;
+  }).join('');
+}
+$('#stRows').addEventListener('click', async e => {
+  const b = e.target.closest('[data-st]'); if (!b) return;
+  const c = STORE[+b.dataset.st];
+  if (!confirm(c.ask || `${c.clear} ${c.label.toLowerCase()}? This can’t be undone (export a backup first if unsure).`)) return;
+  await chrome.storage.local.set(c.reset);
+  toast(`${c.label}: cleared`);
+  location.hash = 'profile'; location.reload(); // simplest way to refresh every view that used this data
+});
+$('#stModel').addEventListener('click', () => chrome.tabs.create({ url: 'chrome://on-device-internals' }).catch(() => toast('Open chrome://on-device-internals in a new tab')));
+chrome.storage.onChanged.addListener((_, area) => { if (area === 'local' && !$('#tab-profile').hidden) renderStorage(); });
+renderStorage();
+
+/* ---------------- This device vs the AI requirements (what the browser can tell us) ---------------- */
+async function renderDevCheck() {
+  const ua = navigator.userAgentData;
+  let os = ua?.platform || (/(Windows|Mac|Linux|CrOS|Android|iPhone|iPad)/.exec(navigator.userAgent) || [, 'Unknown'])[1];
+  try { const h = await ua?.getHighEntropyValues?.(['platformVersion']); if (os === 'Windows' && h?.platformVersion) os += +h.platformVersion.split('.')[0] >= 13 ? ' 11' : ' 10'; } catch { /* keep the short name */ }
+  const cores = navigator.hardwareConcurrency || 0, mem = navigator.deviceMemory;
+  const okOS = !/android|ios|iphone|ipad/i.test(os);
+  const items = [
+    [okOS, `OS: ${os}`],
+    [cores >= 4, `${cores || '?'} CPU cores`],
+    [mem == null ? null : mem >= 8 ? null : false, mem == null ? 'RAM: not reported' : mem >= 8 ? 'RAM: 8 GB or more (browsers don’t report above 8)' : `RAM: about ${mem} GB`],
+    [aiOn() ? true : aiState === 'unavailable' ? false : null, `AI status: ${!S.settings.useAI ? 'off' : aiOn() ? 'ready' : aiState === 'downloadable' ? 'ready to download' : aiState === 'downloading' ? 'downloading' : aiState === 'unavailable' ? 'this device doesn’t qualify' : 'not supported in this Chrome'}`],
+  ];
+  $('#devCheck').innerHTML = '<div class="dc-title">This device</div>' + items.map(([ok, t]) => `<div class="dc ${ok === true ? 'ok' : ok === false ? 'no' : 'na'}"><span>${ok === true ? '✓' : ok === false ? '✕' : '–'}</span>${esc(t)}</div>`).join('') +
+    '<div class="muted small" style="margin-top:4px">Chrome doesn’t let extensions see free disk space or GPU memory. “AI status” is Chrome’s own verdict.</div>';
+}
+$('#aiReqBox').addEventListener('toggle', e => { if (e.target.open) renderDevCheck(); });

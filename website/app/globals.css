@@ -212,3 +212,4 @@ html[data-theme="light"] .hero-bg .horizon { box-shadow: 0 -1px 0 rgb(14 159 110
   .hero-bg .horizon { display: none; }
   .hero-bg .dots { mask-image: radial-gradient(ellipse 90% 60% at 50% 30%, black, transparent 80%); }
 }
+.faq summary::-webkit-details-marker{display:none}

@@ -91,6 +91,7 @@ export default function Privacy() {
       <ul className="mt-3 list-disc space-y-2 pl-5">
         <li><b className="text-fg">Everything at once:</b> open Shortlist → <b className="text-fg">Profile → Privacy → Delete all my data</b>. This removes your resume, profile, photo, history, tracked applications, tailored resumes, cover letters and saved site logins.</li>
         <li><b className="text-fg">Backups you export</b> (Profile → Privacy → Export data) are files on your computer and include everything above, including saved logins; keep them private and delete them when no longer needed.</li>
+        <li><b className="text-fg">By category:</b> Profile → <b className="text-fg">Storage</b> shows how much space each kind of data uses and lets you clear tailored resumes, cover letters, job history, the tracker, your photo or saved logins on their own.</li>
         <li><b className="text-fg">A single saved login:</b> Apply → Saved login → <b className="text-fg">Forget</b>.</li>
         <li><b className="text-fg">Individual items:</b> replace your resume, edit or clear profile fields, remove skills, or remove imported work history, education, projects and certifications in Profile → Structured profile.</li>
         <li><b className="text-fg">Uninstalling</b> Shortlist from <code className="font-mono text-[13px]">chrome://extensions</code> removes all of its locally stored data.</li>
