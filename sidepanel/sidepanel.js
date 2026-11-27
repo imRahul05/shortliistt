@@ -677,6 +677,7 @@ $('#profileForm').addEventListener('input', debounce(async () => {
 
 $('#setWidget').addEventListener('change', e => { S.settings.widget = e.target.checked; save({ settings: S.settings }); });
 $('#setPos').addEventListener('change', e => { S.settings.widgetPos = e.target.value; save({ settings: S.settings }); });
+$('#setTheme').addEventListener('change', e => { S.settings.theme = e.target.value; save({ settings: S.settings }); });
 $('#setAI').addEventListener('change', e => { S.settings.useAI = e.target.checked; save({ settings: S.settings }); refreshAI(); });
 $('#wipe').addEventListener('click', async () => {
   if (!confirm('Delete your resume, profile, history and tailored resumes from this browser?')) return;
@@ -828,6 +829,7 @@ renderTracker();
 if (location.hash === '#tracker') showTab('tracker');
 $('#setWidget').checked = S.settings.widget !== false;
 $('#setPos').value = S.settings.widgetPos || 'br';
+$('#setTheme').value = S.settings.theme || 'system';
 $('#setAI').checked = S.settings.useAI;
 renderHistory();
 await refreshAI();

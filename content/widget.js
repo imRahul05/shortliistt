@@ -45,8 +45,9 @@
   host.style.cssText = 'all:initial;position:fixed;z-index:2147483646;';
   const root = host.attachShadow({ mode: 'open' });
   root.innerHTML = `<style>
-    :host{--bg:#fff;--fg:#0a0a0b;--mut:#6b6b74;--line:#e6e6ea;--soft:#f4f4f6;--good:#12804a;--goodbg:#e9f7ef;--warn:#b25e09;--warnbg:#fdf3e6;--bad:#c0322b;--badbg:#fdecea;--shadow:0 1px 2px rgba(0,0,0,.06),0 8px 28px rgba(0,0,0,.12)}
-    @media (prefers-color-scheme:dark){:host{--bg:#16161a;--fg:#f2f2f4;--mut:#9b9ba6;--line:#2a2a31;--soft:#1f1f25;--good:#3ccf86;--goodbg:#12301f;--warn:#f0a542;--warnbg:#33240f;--bad:#f2706a;--badbg:#3a1614;--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.5)}}
+    :host{--aibg:#eef3ff;--aifg:#16244a;--ailine:#d6e1fb;--bg:#fff;--fg:#0a0a0b;--mut:#6b6b74;--line:#e6e6ea;--soft:#f4f4f6;--good:#12804a;--goodbg:#e9f7ef;--warn:#b25e09;--warnbg:#fdf3e6;--bad:#c0322b;--badbg:#fdecea;--shadow:0 1px 2px rgba(0,0,0,.06),0 8px 28px rgba(0,0,0,.12)}
+    @media (prefers-color-scheme:dark){:host(:not([data-theme=light])){--bg:#16161a;--fg:#f2f2f4;--mut:#9b9ba6;--line:#2a2a31;--soft:#1f1f25;--good:#3ccf86;--goodbg:#12301f;--warn:#f0a542;--warnbg:#33240f;--bad:#f2706a;--badbg:#3a1614;--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.5);--aibg:#152342;--aifg:#dbe6ff;--ailine:#22386a}}
+    :host([data-theme=dark]){--bg:#16161a;--fg:#f2f2f4;--mut:#9b9ba6;--line:#2a2a31;--soft:#1f1f25;--good:#3ccf86;--goodbg:#12301f;--warn:#f0a542;--warnbg:#33240f;--bad:#f2706a;--badbg:#3a1614;--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.5);--aibg:#152342;--aifg:#dbe6ff;--ailine:#22386a}
     *{box-sizing:border-box;margin:0}
     .wrap{font:13px/1.4 "Shortlist Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--fg);-webkit-font-smoothing:antialiased;animation:in .28s cubic-bezier(.2,.8,.2,1)}
     @keyframes in{from{opacity:0;transform:translateY(8px) scale(.98)}}
@@ -88,11 +89,14 @@
     .btns .btn{margin-top:0}
     .btn.ai{background:#2563eb;color:#fff;box-shadow:0 1px 2px rgba(37,99,235,.3),inset 0 1px 0 rgba(255,255,255,.15)}
     .btn.ai svg{width:12px;height:12px}
+    .btn.ai{position:relative}
+    .btn.ai::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:45%;pointer-events:none;background:linear-gradient(105deg,transparent,rgba(255,255,255,.5) 50%,transparent);transform:skewX(-20deg);animation:sh 3.6s cubic-bezier(.4,0,.2,1) infinite}
+    @keyframes sh{0%{left:-60%}38%,100%{left:130%}}
+    @media (prefers-reduced-motion:reduce){.btn.ai::after{display:none}}
     .btn.ghost{background:var(--soft);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line)}
     .btn svg{width:12px;height:12px}
     .btn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px}
-    .ai-box{margin-top:12px;padding:10px 11px;border-radius:10px;background:#eef3ff;color:#16244a;font-size:12.3px;line-height:1.5;max-height:240px;overflow:auto;border:1px solid #d6e1fb}
-    @media (prefers-color-scheme:dark){.ai-box{background:#152342;color:#dbe6ff;border-color:#22386a}}
+    .ai-box{margin-top:12px;padding:10px 11px;border-radius:10px;background:var(--aibg);color:var(--aifg);font-size:12.3px;line-height:1.5;max-height:240px;overflow:auto;border:1px solid var(--ailine)}
     .ai-box p{margin:0 0 6px}.ai-box ul{margin:2px 0 6px;padding-left:16px}.ai-box li{margin:2px 0}.ai-box b{font-weight:600}
     .spin{width:12px;height:12px;border:1.75px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
     @keyframes sp{to{transform:rotate(360deg)}}
@@ -319,7 +323,8 @@
   }
   const schedule = ms => { clearTimeout(timer); timer = setTimeout(run, ms); };
 
-  chrome.storage.local.get('settings', ({ settings: s }) => { settings = { ...settings, ...(s || {}) }; schedule(700); });
+  const theme = () => { if (settings.theme === 'light' || settings.theme === 'dark') host.dataset.theme = settings.theme; else delete host.dataset.theme; };
+  chrome.storage.local.get('settings', ({ settings: s }) => { settings = { ...settings, ...(s || {}) }; theme(); schedule(700); });
   setInterval(() => { if (alive && location.href !== lastUrl) { formSig = ''; formNote = ''; schedule(500); } }, 700);
   new MutationObserver(() => { if (Date.now() < settleUntil) schedule(900); else if (form || !lastHash) scheduleForm(1500); setTimeout(checkConfirmation, 600); }).observe(document.documentElement, { childList: true, subtree: true });
   // A job detected inside an iframe of this page.
@@ -329,7 +334,7 @@
   });
   chrome.storage.onChanged.addListener((ch, area) => {
     if (area !== 'local' || !alive) return;
-    if (ch.settings) { settings = { ...settings, ...(ch.settings.newValue || {}) }; if (!settings.widget) hide(); else place(); }
+    if (ch.settings) { settings = { ...settings, ...(ch.settings.newValue || {}) }; theme(); if (!settings.widget) hide(); else place(); }
     if (ch.resume || ch.profile || ch.settings) { lastHash = ''; schedule(300); }
   });
 })();
