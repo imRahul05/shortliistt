@@ -15,10 +15,10 @@ chrome.runtime.onConnect.addListener(port => {
     try {
       const state = await aiAvailability();
       if (state !== 'available') return send({ error: state });
-      const { resume, profile = {} } = await chrome.storage.local.get(['resume', 'profile']);
+      const { resume, profile = {}, profileData = {} } = await chrome.storage.local.get(['resume', 'profile', 'profileData']);
       if (!resume?.text) return send({ error: 'noresume' });
       const jobA = analyzeJob(msg.job);
-      const match = matchJob(jobA, { text: resume.text, sections: resume.sections, profile: effectiveProfile(resume, profile) });
+      const match = matchJob(jobA, { text: resume.text, sections: resume.sections, profile: effectiveProfile(resume, profile, profileData) });
       const text = await aiInsights({ jobA, resumeText: resume.text, match }, { onChunk: t => send({ chunk: t }) });
       send({ done: true, text });
     } catch (e) {

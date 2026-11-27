@@ -8,7 +8,7 @@ chrome.runtime.onStartup.addListener(setup);
 
 let cache = null;
 async function data() {
-  cache ||= await chrome.storage.local.get(['resume', 'profile', 'settings']);
+  cache ||= await chrome.storage.local.get(['resume', 'profile', 'settings', 'profileData']);
   return cache;
 }
 chrome.storage.onChanged.addListener((_, area) => { if (area === 'local') cache = null; });
@@ -60,7 +60,11 @@ async function scanTab(tabId) {
 
 async function autofillTab(tabId) {
   const scan = await scanTab(tabId);
-  const { profile = {}, resume, accounts = {} } = await chrome.storage.local.get(['profile', 'resume', 'accounts']);
+  const { profile: base = {}, resume, accounts = {}, profileData = {} } = await chrome.storage.local.get(['profile', 'resume', 'accounts', 'profileData']);
+  // Imported structured data (LinkedIn/GitHub) fills in education and current role for application forms.
+  const edu = [...(profileData.education || [])].sort((a, b) => String(b.end || '9999').localeCompare(String(a.end || '9999')))[0] || {};
+  const cur = (profileData.work || []).find(w => !w.end) || {};
+  const profile = { currentCompany: cur.company, targetTitle: cur.title, ...Object.fromEntries(Object.entries(base).filter(([, v]) => v)), school: edu.school || '', degree: edu.degree || '', field: edu.field || '', gradYear: (String(edu.end || '').match(/\d{4}/) || [''])[0] };
   let password = null, generated = false;
   if (scan.kind === 'signup' && scan.host) {
     const existing = accounts[scan.host];
@@ -107,7 +111,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 
   if (msg?.type === 'match' && msg.job) {
     (async () => {
-      const { resume, profile = {} } = await data();
+      const { resume, profile = {}, profileData = {} } = await data();
       // Never score the user's own resume, portfolio or profile pages as a job.
       const own = isOwnContent(msg.job, resume?.text, profile);
       if (own) { if (tabId != null) await setBadge(tabId, null); return reply({ state: 'not-job', reason: own }); }
@@ -118,7 +122,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         if (sender.frameId && tabId != null) chrome.tabs.sendMessage(tabId, { type: 'render', result: { state: 'noresume' }, job: msg.job }, { frameId: 0 }).catch(() => {});
         return reply({ state: 'noresume' });
       }
-      const m = matchJob(analyzeJob(msg.job), { text: resume.text, sections: resume.sections, profile: effectiveProfile(resume, profile) });
+      const m = matchJob(analyzeJob(msg.job), { text: resume.text, sections: resume.sections, profile: effectiveProfile(resume, profile, profileData) });
       if (tabId != null) await setBadge(tabId, m.score);
       const sum = summarize(msg.job, m);
       // Job found inside an iframe (e.g. an embedded Greenhouse board): show the card in the top frame.

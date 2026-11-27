@@ -3,6 +3,7 @@ import { analyzeJob, matchJob, effectiveProfile, isOwnContent, findSkills, exper
 import { SKILLS, SKILL_BY_NAME } from '../lib/skills.js';
 import { extractResumeFile, cleanResumeText, stripRich } from '../lib/resume-parser.js';
 import { templateLetter, defaultLetterMeta, relevantEntries } from '../lib/letter.js';
+import { importGitHub, importLinkedIn, githubUsername, mergeList, KEYS, yearsFromWork, fmtYM, parseMonth } from '../lib/importers.js';
 import { parseResumeModel, modelSections } from '../lib/resume-model.js';
 import { aiAvailability, AI_LABEL, aiInsights, aiAnswer, aiCoverLetter, downloadModel, aiParseResume, aiJobRequirements } from '../lib/ai.js';
 import { $, $$, toast, md, download, busy, scoreClass, scoreColor, ICON, MARK, fmtMonths, fmtMonth } from '../lib/ui.js';
@@ -44,7 +45,7 @@ document.addEventListener('click', e => {
   const c = e.target.closest('[data-copy]'); if (c) navigator.clipboard.writeText($('#' + c.dataset.copy).value).then(() => toast('Copied'));
 });
 
-const prof = () => effectiveProfile(S.resume, S.profile);
+const prof = () => effectiveProfile(S.resume, S.profile, S.profileData);
 const tone = s => (s >= 75 ? ['var(--good)', 'var(--good-soft)'] : s >= 55 ? ['var(--warn)', 'var(--warn-soft)'] : ['var(--bad)', 'var(--bad-soft)']);
 const aiOn = () => aiState === 'available';
 
@@ -504,10 +505,10 @@ function renderResume() {
   const ranges = experienceRanges(wt).sort((a, b) => b.end - a.end || b.start - a.start);
   const nowM = new Date().getFullYear() * 12 + new Date().getMonth();
   const total = experienceIntervals(wt).reduce((a, [s, e]) => a + (e - s), 0);
-  const cy = candidateYears(r.text, r.sections, S.profile.yearsExperience, r.detected?.aiYears);
-  $('#yearsTotal').textContent = S.profile.yearsExperience ? `${S.profile.yearsExperience} yrs (override)` : total ? fmtMonths(total) : cy.years ? `${cy.years} yrs · ${cy.source}` : '';
+  const cy = candidateYears(r.text, r.sections, S.profile.yearsExperience, r.detected?.aiYears, S.profileData?.years);
+  $('#yearsTotal').textContent = S.profile.yearsExperience ? `${S.profile.yearsExperience} yrs (override)` : cy.source === 'LinkedIn' ? `${cy.years} yrs · LinkedIn` : total ? fmtMonths(total) : cy.years ? `${cy.years} yrs · ${cy.source}` : '';
   $('#roles').innerHTML = ranges.length ? ranges.slice(0, 8).map(x => `<li><span class="rl" title="${esc(x.label)}">${esc(cleanLabel(x.label) || 'Role')}</span><span class="rd">${fmtMonth(x.start)} – ${x.end >= nowM ? 'Present' : fmtMonth(x.end - 1)} · ${fmtMonths(x.end - x.start)}</span></li>`).join('')
-    : `<li class="empty-roles">No date ranges found in your work history.${cy.source === 'AI' ? ` AI estimates ${cy.years} years.` : ' Set your years below.'}</li>`;
+    : `<li class="empty-roles">No date ranges found in your work history.${cy.source === 'LinkedIn' ? ` Using ${cy.years} years from your LinkedIn work history.` : cy.source === 'AI' ? ` AI estimates ${cy.years} years.` : ' Set your years below.'}</li>`;
   $('#yearsOverride').placeholder = total ? `${Math.round(total / 1.2) / 10} detected` : 'e.g. 3';
   $('#yearsOverride').value = S.profile.yearsExperience ?? '';
   renderSkills();
@@ -524,13 +525,14 @@ function mySkills() {
   const out = new Map();
   for (const n of det) out.set(n, 'resume');
   for (const n of ai) if (!out.has(n)) out.set(n, 'ai');
+  for (const s of S.profileData?.skills || []) if (!out.has(s.name)) out.set(s.name, s.source || 'import');
   for (const n of added) if (!out.has(n)) out.set(n, 'added');
   return [...out].filter(([n]) => !removed.has(n));
 }
 function renderSkills() {
   const items = mySkills();
   $('#skillCount').textContent = items.length || '';
-  $('#mySkills').innerHTML = items.map(([n, src]) => `<span class="chip" data-skill="${esc(n)}">${esc(n)}${src === 'ai' ? ' <span class="ai">AI</span>' : ''}<button class="x" title="Remove">×</button></span>`).join('') || '<span class="muted small">No skills detected yet.</span>';
+  $('#mySkills').innerHTML = items.map(([n, src]) => `<span class="chip" data-skill="${esc(n)}">${esc(n)}${src === 'ai' ? ' <span class="ai">AI</span>' : src === 'github' ? ' <span class="src" title="From GitHub">GH</span>' : src === 'linkedin' ? ' <span class="src" title="From LinkedIn">in</span>' : ''}<button class="x" title="Remove">×</button></span>`).join('') || '<span class="muted small">No skills detected yet.</span>';
 }
 async function addSkill(name) {
   name = name.trim(); if (!name) return;
@@ -545,6 +547,7 @@ $('#mySkills').addEventListener('click', async e => {
   const x = e.target.closest('.x'); if (!x) return;
   const n = x.closest('.chip').dataset.skill;
   S.profile.extraSkills = list(S.profile.extraSkills).filter(s => s !== n).join(', ');
+  if (S.profileData?.skills?.some(s => s.name === n)) { S.profileData.skills = S.profileData.skills.filter(s => s.name !== n); await save({ profileData: S.profileData }); }
   const rem = list(S.profile.removedSkills); if (!rem.includes(n)) rem.push(n);
   S.profile.removedSkills = rem.join(', ');
   await save({ profile: S.profile });
@@ -562,8 +565,104 @@ $('#saveResumeText').addEventListener('click', async () => {
   toast('Saved'); rescore();
 });
 
+/* ---------------- Profile: import from GitHub / LinkedIn (no AI) ---------------- */
+let pending = null; // import result waiting for the user's review
+const PROFILE_FIELDS = [['name', 'Name'], ['email', 'Email'], ['phone', 'Phone'], ['location', 'Location'], ['targetTitle', 'Title'], ['currentCompany', 'Current company'], ['portfolio', 'Portfolio'], ['github', 'GitHub']];
+const dateRange = (s, e) => [s, e || 'Present'].filter(Boolean).join(' – ');
+
+function showPreview(r) {
+  pending = r;
+  const box = $('#impPreview');
+  const have = new Set(mySkills().map(([n]) => n.toLowerCase()));
+  const pd = S.profileData || {};
+  const isNew = (list, k, x) => !(pd[list] || []).some(y => KEYS[k](y) === KEYS[k](x));
+  const fields = PROFILE_FIELDS.filter(([k]) => r.profile?.[k] && !S.profile[k]);
+  const skills = (r.skills || []).filter(s => !have.has(s.name.toLowerCase()));
+  const work = (r.work || []).filter(w => isNew('work', 'work', w));
+  const edu = (r.education || []).filter(e => isNew('education', 'education', e));
+  const certs = (r.certifications || []).filter(c => isNew('certifications', 'certifications', c));
+  const projects = (r.projects || []).filter(p => isNew('projects', 'projects', p));
+  const item = (group, i, title, sub, checked = true) => `<label class="imp-item"><input type="checkbox" data-g="${group}" data-i="${i}" ${checked ? 'checked' : ''}><div><div>${esc(title)}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}</div></label>`;
+  let html = `<div class="st-src"><b>${r.source === 'github' ? `GitHub · @${esc(r.username)}` : 'LinkedIn export'}</b>${r.stats ? ` · ${r.stats.repos} public repos` : ''}${r.years ? ` · ${r.years} yrs of work history` : ''}. Choose what to add:</div>`;
+  if (fields.length) html += `<h4>Fill empty profile fields</h4>` + fields.map(([k, label]) => item('field', k, `${label}: ${r.profile[k]}`)).join('');
+  if (skills.length) html += `<h4>Skills (${skills.length})</h4>` + skills.map((s, i) => item('skill', i, s.name, s.why)).join('');
+  if (work.length) html += `<h4>Work history (${work.length})</h4>` + work.map((w, i) => item('work', i, `${w.title} · ${w.company}`, dateRange(w.start, w.end))).join('');
+  if (edu.length) html += `<h4>Education (${edu.length})</h4>` + edu.map((e, i) => item('edu', i, e.school, [e.degree, dateRange(e.start, e.end)].filter(Boolean).join(' · '))).join('');
+  if (certs.length) html += `<h4>Certifications (${certs.length})</h4>` + certs.map((c, i) => item('cert', i, c.name, c.authority)).join('');
+  if (projects.length) html += `<h4>Projects (${projects.length})</h4>` + projects.map((p, i) => item('proj', i, p.name, [p.language, p.stars ? `★ ${p.stars}` : '', p.description].filter(Boolean).join(' · '), i < 6)).join('');
+  if (!fields.length && !skills.length && !work.length && !edu.length && !certs.length && !projects.length) html += '<p class="muted small" style="margin:0">Nothing new — your profile already has all of this.</p>';
+  else html += `<div class="row" style="margin-top:10px"><button class="btn small primary" id="impApply">Add selected</button><button class="btn small ghost" id="impCancel">Cancel</button></div>`;
+  pending.view = { fields, skills, work, edu, certs, projects };
+  box.innerHTML = html; box.hidden = false;
+  box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+$('#impPreview').addEventListener('click', async e => {
+  if (e.target.id === 'impCancel') { pending = null; $('#impPreview').hidden = true; return; }
+  if (e.target.id !== 'impApply' || !pending) return;
+  const pick = g => $$(`#impPreview input[data-g="${g}"]:checked`).map(cb => cb.dataset.i);
+  const v = pending.view;
+  for (const k of pick('field')) S.profile[k] = pending.profile[k];
+  const pd = S.profileData = { work: [], education: [], certifications: [], projects: [], skills: [], sources: {}, ...(S.profileData || {}) };
+  pd.skills = mergeList(pd.skills, pick('skill').map(i => ({ ...v.skills[i], source: pending.source })), s => KEYS.skills(s.name));
+  pd.work = mergeList(pd.work, pick('work').map(i => ({ ...v.work[i], source: pending.source })), KEYS.work).sort((a, b) => (parseMonth(b.start) ?? 0) - (parseMonth(a.start) ?? 0));
+  pd.education = mergeList(pd.education, pick('edu').map(i => v.edu[i]), KEYS.education);
+  pd.certifications = mergeList(pd.certifications, pick('cert').map(i => v.certs[i]), KEYS.certifications);
+  pd.projects = mergeList(pd.projects, pick('proj').map(i => v.projects[i]), KEYS.projects);
+  pd.years = yearsFromWork(pd.work);
+  pd.sources[pending.source] = { at: Date.now(), ...(pending.username ? { username: pending.username } : {}) };
+  // Removing a skill earlier then importing it again: the user chose it, so un-remove.
+  const added = new Set(pick('skill').map(i => v.skills[i].name));
+  S.profile.removedSkills = list(S.profile.removedSkills).filter(n => !added.has(n)).join(', ');
+  await save({ profile: S.profile, profileData: pd });
+  pending = null; $('#impPreview').hidden = true;
+  fillProfileForm(); renderResume(); renderStructured(); rescore();
+  toast('Added to your profile');
+});
+
+$('#ghBtn').addEventListener('click', async () => {
+  const u = githubUsername($('#ghUser').value || S.profile.github || '');
+  if (!u) return toast('Enter your GitHub username or profile URL');
+  const btn = $('#ghBtn'); busy(btn, true, 'Importing…');
+  try { showPreview(await importGitHub(u)); }
+  catch (e) { toast(e.message, 4000); }
+  busy(btn, false);
+});
+$('#liFile').addEventListener('change', async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length) return;
+  $('#liNote').textContent = 'Reading…';
+  try { const r = await importLinkedIn(files); $('#liNote').textContent = `Read ${r.files.join(', ')}`; showPreview(r); }
+  catch (err) { $('#liNote').textContent = ''; toast(err.message, 5000); }
+});
+
+function renderStructured() {
+  const pd = S.profileData || {};
+  const n = (pd.work?.length || 0) + (pd.education?.length || 0) + (pd.projects?.length || 0) + (pd.certifications?.length || 0);
+  $('#structCard').hidden = !n && !(pd.skills?.length);
+  $('#structCount').textContent = n ? `${n} item${n === 1 ? '' : 's'}` : '';
+  if (!$('#ghUser').value) $('#ghUser').value = pd.sources?.github?.username || githubUsername(S.profile.github || '') || '';
+  const src = Object.entries(pd.sources || {}).map(([k, v]) => `${k === 'github' ? 'GitHub' + (v.username ? ' @' + esc(v.username) : '') : 'LinkedIn'} · ${new Date(v.at).toLocaleDateString()}`).join(' &nbsp;·&nbsp; ');
+  const row = (list, i, t, sub, href) => `<div class="st-item"><div class="main"><div class="t">${href ? `<a href="${esc(href)}" target="_blank" rel="noopener" style="color:inherit">${esc(t)}</a>` : esc(t)}</div>${sub ? `<div class="sub" title="${esc(sub)}">${esc(sub)}</div>` : ''}</div><button class="x" data-l="${list}" data-i="${i}" title="Remove">×</button></div>`;
+  const group = (title, list, items) => items?.length ? `<div class="st-group"><div class="group-title"><span>${title}</span><span>${items.length}</span></div>${items.map((x, i) => row(list, i, ...x)).join('')}</div>` : '';
+  $('#structBody').innerHTML = (src ? `<div class="st-src">Imported from ${src}${pd.years ? ` · ${pd.years} yrs of work history` : ''}</div>` : '')
+    + group('Work history', 'work', (pd.work || []).map(w => [`${w.title} · ${w.company}`, [dateRange(w.start, w.end), w.location].filter(Boolean).join(' · ')]))
+    + group('Education', 'education', (pd.education || []).map(e => [e.school, [e.degree, dateRange(e.start, e.end)].filter(Boolean).join(' · ')]))
+    + group('Projects', 'projects', (pd.projects || []).map(p => [p.name, [p.language, p.stars ? `★ ${p.stars}` : '', p.description].filter(Boolean).join(' · '), p.url]))
+    + group('Certifications', 'certifications', (pd.certifications || []).map(c => [c.name, [c.authority, c.date].filter(Boolean).join(' · '), c.url]));
+}
+$('#structBody').addEventListener('click', async e => {
+  const x = e.target.closest('.x[data-l]'); if (!x) return;
+  const pd = S.profileData; pd[x.dataset.l].splice(+x.dataset.i, 1);
+  if (x.dataset.l === 'work') pd.years = yearsFromWork(pd.work);
+  await save({ profileData: pd }); renderStructured(); renderResume(); rescore();
+});
+
 /* ---------------- Profile: details & settings ---------------- */
-function fillProfileForm() { for (const el of $('#profileForm').elements) if (el.name && document.activeElement !== el) el.value = S.profile[el.name] ?? ''; }
+function fillProfileForm() {
+  for (const el of $('#profileForm').elements) if (el.name && document.activeElement !== el) el.value = S.profile[el.name] ?? '';
+  if (!$('#ghUser').value && S.profile.github) $('#ghUser').value = githubUsername(S.profile.github);
+}
 $('#profileForm').addEventListener('input', debounce(async () => {
   for (const el of $('#profileForm').elements) if (el.name) S.profile[el.name] = el.value.trim();
   await save({ profile: S.profile });
@@ -623,6 +722,7 @@ async function migrate() {
 await migrate();
 fillProfileForm();
 renderResume();
+renderStructured();
 $('#setWidget').checked = S.settings.widget !== false;
 $('#setPos').value = S.settings.widgetPos || 'br';
 $('#setAI').checked = S.settings.useAI;

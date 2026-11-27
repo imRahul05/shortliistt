@@ -6,7 +6,7 @@ export const metadata: Metadata = {
 };
 
 const REPO = 'https://github.com/imRahul05/shortliistt';
-const UPDATED = 'November 26, 2026';
+const UPDATED = 'November 27, 2026';
 
 function H({ id, children }: { id: string; children: React.ReactNode }) {
   return <h2 id={id} className="mt-12 scroll-mt-24 text-xl font-semibold tracking-tight text-fg">{children}</h2>;
@@ -50,6 +50,7 @@ export default function Privacy() {
         <li><b className="text-fg">Content of the web pages you visit</b>, read locally to detect job postings (title, company, description) and application forms. Pages that are not job postings or application forms are not analysed further.</li>
         <li><b className="text-fg">Job history</b>: the jobs you open (title, company, URL, match score, date).</li>
         <li><b className="text-fg">Documents you create</b>: tailored resumes and cover letters.</li>
+        <li><b className="text-fg">Imported profile data</b>, only if you choose to import it: from <b className="text-fg">GitHub</b> (your public profile and public repositories: languages, topics, descriptions, stars) and from a <b className="text-fg">LinkedIn data export</b> you upload (positions, education, skills, certifications, and basic profile and contact details).</li>
         <li><b className="text-fg">Site logins created by Shortlist</b>: if you use Autofill on a job site’s create-account form, Shortlist generates a password and saves the email and password for that site so it can fill them when you sign in later.</li>
       </ul>
       <p className="mt-3">Shortlist does not collect browsing history beyond the job pages listed above, analytics, device identifiers, location or payment information.</p>
@@ -66,7 +67,7 @@ export default function Privacy() {
       </ul>
 
       <H id="servers">5. No Shortlist servers</H>
-      <p className="mt-3">Shortlist does not operate any server that receives, stores or processes your resume, profile, job history or documents. The extension makes no network requests of its own: no telemetry, analytics, crash reporting or remote code. All of its code is bundled in the extension and is <a href={REPO} className="text-fg underline underline-offset-2">open source</a>.</p>
+      <p className="mt-3">Shortlist does not operate any server that receives, stores or processes your resume, profile, job history or documents. The extension sends no telemetry, analytics or crash reports and loads no remote code. Its only network request of its own is optional: when you click <b className="text-fg">Import from GitHub</b>, it requests your <b className="text-fg">public</b> profile and repositories from <code className="font-mono text-[13px]">api.github.com</code> using the username you enter, with no sign-in or token. That request goes to GitHub under GitHub’s privacy statement; nothing else is sent. A LinkedIn data export is read entirely on your device. All of its code is bundled in the extension and is <a href={REPO} className="text-fg underline underline-offset-2">open source</a>.</p>
 
       <H id="sharing">6. When information leaves your browser</H>
       <p className="mt-3">Information only leaves your device through actions you take:</p>
@@ -88,7 +89,7 @@ export default function Privacy() {
       <ul className="mt-3 list-disc space-y-2 pl-5">
         <li><b className="text-fg">Everything at once:</b> open Shortlist → <b className="text-fg">Profile → Privacy → Delete all my data</b>. This removes your resume, profile, history, tailored resumes, cover letters and saved site logins.</li>
         <li><b className="text-fg">A single saved login:</b> Apply → Saved login → <b className="text-fg">Forget</b>.</li>
-        <li><b className="text-fg">Individual items:</b> replace your resume, edit or clear profile fields, or remove skills in Profile.</li>
+        <li><b className="text-fg">Individual items:</b> replace your resume, edit or clear profile fields, remove skills, or remove imported work history, education, projects and certifications in Profile → Structured profile.</li>
         <li><b className="text-fg">Uninstalling</b> Shortlist from <code className="font-mono text-[13px]">chrome://extensions</code> removes all of its locally stored data.</li>
         <li>Information already submitted to a job website is held by that website. Contact them to delete it.</li>
       </ul>

@@ -21,6 +21,7 @@ Free, private job-application helper. No sign-in, no API keys, no servers. Every
 | Cover letter | Drafted automatically for every job from your profile, best-matching experience and a relevant project; **Generate with AI** for a fully written version. Same header as your resume; export PDF/DOCX. | Optional |
 | Autofill | Detects **create-account**, **sign-in** and **application** forms (Workday, Greenhouse, Lever, iCIMS…). Fills name, email, phone, links, location, experience and attaches your resume. On sign-up it creates a **strong password** (saved per site, shown in Apply → Saved login) and reuses it on sign-in. The page's own buttons (*Create Account*, *Sign In*, *Next*) are mirrored in the card and side panel. Terms/consent boxes are never ticked for you. | No |
 | Resume auto-detection | Experience timeline from date ranges (`Sep 2025 – Present`, `2025-09`, `Sep '25`, `Since …`), skills, title, company, location — editable in Profile. | No |
+| Profile import | **GitHub** (opt-in, public API, no key): languages, topics and top projects become evidence-backed skills and a projects list. **LinkedIn data export** (ZIP/CSV, read locally): work history with exact dates, education, skills, certifications. You review everything before it's added; it improves matching (skills, years) and autofill (education, current role). | No |
 | AI layer | Chrome's **built-in Gemini Nano**: fills gaps in resume parsing (extra skills, years when no dates), gives a second-opinion read of job requirements, review, summary, bullet rewrites, cover letter, application answers. Never changes the deterministic score. | Optional |
 
 ### About the AI
@@ -32,7 +33,7 @@ Free, private job-application helper. No sign-in, no API keys, no servers. Every
 ## Privacy
 Full policy: **[shortliistt.vercel.app/privacy](https://shortliistt.vercel.app/privacy)**.
 
-In short: your resume, profile, history, drafts and any site logins Shortlist creates are stored in `chrome.storage.local` on your device (not synced, not encrypted at rest — treat it like a browser profile). There is no Shortlist server, the extension makes no network requests of its own, and AI runs on-device via Chrome's built-in Gemini Nano (which Chrome downloads separately). Data only leaves your browser when you submit an application to a job site. **Profile → Delete all my data** (or uninstalling) removes everything.
+In short: your resume, profile, history, drafts and any site logins Shortlist creates are stored in `chrome.storage.local` on your device (not synced, not encrypted at rest — treat it like a browser profile). There is no Shortlist server, the extension makes no network requests of its own (except an optional, user-initiated GitHub import of your public profile), and AI runs on-device via Chrome's built-in Gemini Nano (which Chrome downloads separately). Data only leaves your browser when you submit an application to a job site. **Profile → Delete all my data** (or uninstalling) removes everything.
 
 ## Architecture
 
