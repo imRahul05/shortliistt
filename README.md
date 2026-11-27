@@ -81,3 +81,12 @@ The landing page lives in `website/` (Next.js + Tailwind + Geist). Deploy on Ver
 * Wrong or empty job text? Select the description on the page and click **Analyze**, or use **Edit job text**.
 * Click a red (missing) skill in the Match tab if you really have it. It's added to your profile skills and the score updates.
 * Set **Years of experience** in Profile if the value computed from your resume dates is off.
+
+## License
+Copyright © 2026 Rahul Kumar. Shortlist is **source-available** under the [PolyForm Strict License 1.0.0](LICENSE.md):
+
+- ✅ Read the code, install the released extension and use it for non-commercial purposes, including your own job search (see [additional permission](COMMERCIAL.md)).
+- ❌ No modifying, building on, redistributing or re-publishing it, including forks, clones and store uploads, without written permission.
+
+Commercial licensing or other permissions: see [COMMERCIAL.md](COMMERCIAL.md). Bundled third-party components keep their own licenses: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
